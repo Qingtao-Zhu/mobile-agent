@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 顶部拖拽把手：暗示「往下拖一下就关了」。 -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <solid android:color="@color/assistant_glass_handle" />
+    <corners android:radius="2dp" />
+</shape>

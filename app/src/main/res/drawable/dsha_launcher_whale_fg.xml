@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  启动器图标前景层（自适应图标）：把鲸鱼往里收 18%，别顶到虚拟边。
+  自适应图标的 mask（圆/圆角方）会裁掉外圈约 1/4，foreground 一顶边鲸鱼尾巴就被切掉半个。
+-->
+<inset xmlns:android="http://schemas.android.com/apk/res/android"
+    android:drawable="@drawable/dsha_ic_whale"
+    android:inset="18%" />

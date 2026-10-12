@@ -1,0 +1,11 @@
+<resources>
+  <!-- 旧图标：品牌蓝底 + 一张 PNG（dsha_brand），minSdk 23 的兜底 flavor 还在用，留着别删 -->
+  <color name="dsha_launcher_background">#A7D1FF</color>
+
+  <!--
+    2026-10-08 用户指定「应用图标也改成黑白」：白底 + 官方那头黑鲸鱼。
+    必须**新起一个颜色名**：旧的 dsha_launcher_background 还被旧图标文件引用着，
+    就地改色会让旧图标也跟着变，兜底 flavor 就没法退回品牌蓝了。
+  -->
+  <color name="dsha_launcher_bg">#FFFFFF</color>
+</resources>

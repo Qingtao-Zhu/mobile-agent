@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  2026-10-08 换图标：**新起一个名字**（ic_launcher_whale），不去覆盖旧 ic_launcher_v137。
+
+  为什么必须新起名字：mipmap-<density> 下的 ic_launcher_v137.png 在资源解析里
+  优先级高于 mipmap-anydpi-v26 —— 就地改自适应图标，位图会把自适应那层盖掉，
+  装完手机上纹丝不动（这一条是 2026-10-08 实测踩出来的：改了 foreground 却毫无变化）。
+  新名字下没有任何密度位图，这台机（API 30）就只会取这个自适应图标。
+
+  白底 + 黑鲸鱼，就是用户要的"黑白"；和悬浮球同一只鲸鱼、同一套剪影。
+-->
+<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+    <background android:drawable="@color/dsha_launcher_bg" />
+    <foreground android:drawable="@drawable/dsha_launcher_whale_fg" />
+</adaptive-icon>

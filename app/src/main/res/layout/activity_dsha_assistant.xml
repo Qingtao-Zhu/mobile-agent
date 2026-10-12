@@ -1,0 +1,259 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- V2 助手面板（Siri 风格玻璃卡片）。
+     根布局铺满全屏但**必须保持完全透明**（除了卡片本身）：
+     EMUI 12 上只要这个窗口里出现任何非零 alpha 的全屏像素（自绘 scrim / 系统 DIM），
+     HWC 就会把下层整个盖成纯黑 —— 2026-10-07 实测 transparentRegionHint 变成空、
+     下层 launcher 一个像素都合不上来（报告 §5.6 的另一种形态）。
+     所以这里没有压暗层，「暗」的感觉由卡片自己的玻璃底图（真·背景模糊 + 压暗）承担。
+     点卡片外的透明区域 = 关面板。
+     自上而下：把手 → 光球+屏幕摘要 → 建议 chips → 状态行 → 回答 → 操作 → 输入行。 -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/assistant_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:clickable="true"
+    android:fitsSystemWindows="true">
+
+    <LinearLayout
+        android:id="@+id/assistant_card"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom"
+        android:layout_marginStart="10dp"
+        android:layout_marginTop="14dp"
+        android:layout_marginEnd="10dp"
+        android:layout_marginBottom="8dp"
+        android:background="@drawable/bg_glass_card"
+        android:clickable="true"
+        android:orientation="vertical"
+        android:paddingStart="18dp"
+        android:paddingTop="10dp"
+        android:paddingEnd="18dp"
+        android:paddingBottom="18dp">
+
+        <!-- 拖拽把手区：往下拖收起面板，点一下直接关。
+             做成 20dp 高的整条（而不是 4dp 细条）手指才够得着。 -->
+        <FrameLayout
+            android:id="@+id/assistant_handle"
+            android:layout_width="match_parent"
+            android:layout_height="20dp"
+            android:layout_marginBottom="4dp"
+            android:clickable="true">
+
+            <View
+                android:layout_width="38dp"
+                android:layout_height="4dp"
+                android:layout_gravity="center"
+                android:background="@drawable/bg_glass_handle" />
+        </FrameLayout>
+
+        <!-- 光球 + 屏幕摘要 + 重读 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <com.deepseekharness.app.assistant.SiriOrbView
+                android:id="@+id/assistant_orb"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:layout_marginEnd="10dp" />
+
+            <TextView
+                android:id="@+id/assistant_screen_summary"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:ellipsize="end"
+                android:maxLines="2"
+                android:textColor="@color/assistant_text_secondary"
+                android:textSize="12.5sp"
+                android:shadowColor="@color/assistant_shadow"
+                android:shadowDx="0"
+                android:shadowDy="1"
+                android:shadowRadius="3" />
+
+            <ImageButton
+                android:id="@+id/assistant_refresh_screen"
+                android:layout_width="34dp"
+                android:layout_height="34dp"
+                android:background="?android:attr/selectableItemBackgroundBorderless"
+                android:contentDescription="@string/assistant_refresh_screen"
+                android:padding="5dp"
+                android:scaleType="fitCenter"
+                android:src="@drawable/ic_assistant_refresh" />
+        </LinearLayout>
+
+        <!-- Siri 建议：点一下直接发问 -->
+        <HorizontalScrollView
+            android:id="@+id/assistant_chips_scroll"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:clipToPadding="false"
+            android:overScrollMode="never"
+            android:scrollbars="none">
+
+            <LinearLayout
+                android:id="@+id/assistant_chips"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal" />
+        </HorizontalScrollView>
+
+        <TextView
+            android:id="@+id/assistant_status"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:textColor="@color/assistant_accent"
+            android:textSize="13sp"
+            android:shadowColor="@color/assistant_shadow"
+            android:shadowDx="0"
+            android:shadowDy="1"
+            android:shadowRadius="3"
+            android:visibility="gone" />
+
+        <ScrollView
+            android:id="@+id/assistant_result_scroll"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:maxHeight="210dp"
+            android:overScrollMode="never"
+            android:scrollbars="none"
+            android:visibility="gone">
+
+            <TextView
+                android:id="@+id/assistant_result"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:lineSpacingExtra="3dp"
+                android:textColor="@color/assistant_text"
+                android:textSize="15sp"
+                android:shadowColor="@color/assistant_shadow"
+                android:shadowDx="0"
+                android:shadowDy="1"
+                android:shadowRadius="3.5" />
+        </ScrollView>
+
+        <LinearLayout
+            android:id="@+id/assistant_result_actions"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:gravity="end"
+            android:orientation="horizontal"
+            android:visibility="gone">
+
+            <TextView
+                android:id="@+id/assistant_copy"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:background="@drawable/bg_glass_chip"
+                android:paddingStart="13dp"
+                android:paddingTop="7dp"
+                android:paddingEnd="13dp"
+                android:paddingBottom="7dp"
+                android:text="@string/assistant_copy"
+                android:textColor="@color/assistant_text_secondary"
+                android:textSize="12.5sp" />
+
+            <TextView
+                android:id="@+id/assistant_speak"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:background="@drawable/bg_glass_chip"
+                android:paddingStart="13dp"
+                android:paddingTop="7dp"
+                android:paddingEnd="13dp"
+                android:paddingBottom="7dp"
+                android:text="@string/assistant_speak"
+                android:textColor="@color/assistant_text_secondary"
+                android:textSize="12.5sp" />
+
+            <TextView
+                android:id="@+id/assistant_share"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:background="@drawable/bg_glass_chip"
+                android:paddingStart="13dp"
+                android:paddingTop="7dp"
+                android:paddingEnd="13dp"
+                android:paddingBottom="7dp"
+                android:text="@string/assistant_share"
+                android:textColor="@color/assistant_text_secondary"
+                android:textSize="12.5sp" />
+
+            <TextView
+                android:id="@+id/assistant_workbench"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:background="@drawable/bg_glass_chip"
+                android:paddingStart="13dp"
+                android:paddingTop="7dp"
+                android:paddingEnd="13dp"
+                android:paddingBottom="7dp"
+                android:text="@string/assistant_workbench"
+                android:textColor="@color/assistant_accent"
+                android:textSize="12.5sp" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <EditText
+                android:id="@+id/assistant_input"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:background="@drawable/bg_glass_pill"
+                android:hint="@string/assistant_hint"
+                android:importantForAutofill="no"
+                android:imeOptions="actionSend"
+                android:inputType="text"
+                android:maxLines="1"
+                android:paddingStart="16dp"
+                android:paddingTop="12dp"
+                android:paddingEnd="16dp"
+                android:paddingBottom="12dp"
+                android:textColor="@color/assistant_text"
+                android:textColorHint="@color/assistant_text_secondary"
+                android:textSize="15sp"
+                android:shadowColor="@color/assistant_shadow"
+                android:shadowDx="0"
+                android:shadowDy="1"
+                android:shadowRadius="3" />
+
+            <TextView
+                android:id="@+id/assistant_mic"
+                android:layout_width="46dp"
+                android:layout_height="46dp"
+                android:layout_marginStart="8dp"
+                android:background="@drawable/bg_glass_circle"
+                android:gravity="center"
+                android:text="@string/assistant_mic"
+                android:textColor="@color/assistant_text"
+                android:textSize="11.5sp" />
+
+            <TextView
+                android:id="@+id/assistant_send"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:layout_marginStart="8dp"
+                android:background="@drawable/bg_send_circle"
+                android:gravity="center"
+                android:text="@string/assistant_send"
+                android:textColor="#FFFFFFFF"
+                android:textSize="11.5sp" />
+        </LinearLayout>
+    </LinearLayout>
+</FrameLayout>

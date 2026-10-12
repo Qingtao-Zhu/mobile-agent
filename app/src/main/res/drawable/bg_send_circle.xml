@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 发送键：Siri 那种彩色渐变圆，面板里唯一的高饱和元素（一眼找得到）。 -->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:state_pressed="true">
+        <shape android:shape="oval">
+            <gradient
+                android:angle="45"
+                android:endColor="#FF9B4DFF"
+                android:startColor="#FF3E7BFF"
+                android:type="linear" />
+        </shape>
+    </item>
+    <item>
+        <shape android:shape="oval">
+            <gradient
+                android:angle="45"
+                android:endColor="@color/assistant_send_end"
+                android:startColor="@color/assistant_send_start"
+                android:type="linear" />
+        </shape>
+    </item>
+</selector>

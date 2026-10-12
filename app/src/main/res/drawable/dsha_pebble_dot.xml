@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 悬浮球正中间那颗深色圆点：一眼就知道这是个"能按的东西"，不是装饰 -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="oval">
+    <solid android:color="#48484A" />
+</shape>

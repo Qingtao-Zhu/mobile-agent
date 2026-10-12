@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 玻璃卡片底：只在「真·背景模糊没抓到」时顶上（服务没开 / 超时 / Android 10 以下）。
+     真抓到了，卡片背景会被换成 AssistantBackdrop 合成的那张位图。
+     2026-10-07：四角全圆（卡片四周留缝悬浮）、底色调亮一档 ——
+     深色壁纸上 0xD9 的黑底看起来像"从黑边界里裁出来的"。 -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item>
+        <shape android:shape="rectangle">
+            <solid android:color="@color/assistant_glass_base" />
+            <corners android:radius="32dp" />
+        </shape>
+    </item>
+    <item>
+        <shape android:shape="rectangle">
+            <gradient
+                android:angle="270"
+                android:endColor="#00FFFFFF"
+                android:startColor="@color/assistant_glass_gloss" />
+            <corners android:radius="32dp" />
+        </shape>
+    </item>
+    <item>
+        <shape android:shape="rectangle">
+            <solid android:color="@android:color/transparent" />
+            <stroke
+                android:width="1dp"
+                android:color="@color/assistant_glass_stroke" />
+            <corners android:radius="32dp" />
+        </shape>
+    </item>
+</layer-list>

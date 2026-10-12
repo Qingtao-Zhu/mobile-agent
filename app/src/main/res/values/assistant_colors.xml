@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- V2 助手面板专用色：Siri 风格玻璃卡片，自成一套，不跟应用主题的日/夜间跑。 -->
+<resources>
+    <!-- 老配色保留：真·背景模糊拿不到时的降级底（bg_glass_card 用） -->
+    <color name="assistant_panel_bg">#E6141414</color>
+    <!-- 面板上方自绘的压暗层（替代在 EMUI 上会变纯黑的系统 DIM_BEHIND） -->
+    <color name="assistant_scrim">#5C000000</color>
+
+    <!-- 玻璃卡片：底色 / 反光 / 描边
+         2026-10-07 定稿（用户拍板："有点透了，把透明度调得不透明一点"）：
+         卡片做成接近实底的深玻璃（base 90%），靠"实"跟活背景分出层级；
+         周围留缝 / 圆角外仍然 100% 真透明、逐像素透出下层（check-live.py 6/6 PASS），
+         所以不会有"从黑边里硬裁出来"的问题 —— 那个黑边是 Activity 窗口的 EMUI HWC
+         缺陷，不是配色，靠 TYPE_ACCESSIBILITY_OVERLAY 才根除。
+         体积感 = 90% 深底 + 顶部高光 + 亮描边 + 卡片投影 + 文字投影。 -->
+    <color name="assistant_glass_base">#E6171B2A</color>
+    <color name="assistant_glass_gloss">#3DFFFFFF</color>
+    <color name="assistant_glass_stroke">#4DFFFFFF</color>
+    <color name="assistant_glass_fill">#22FFFFFF</color>
+    <color name="assistant_glass_fill_strong">#33FFFFFF</color>
+    <color name="assistant_glass_handle">#55FFFFFF</color>
+
+    <!-- 玻璃上的文字投影：底透到 30% 后背景明暗会直接影响可读性，
+         给正文/次要文字压一层淡黑影子（Glassmorphism 的常规做法）。 -->
+    <color name="assistant_shadow">#99000000</color>
+
+    <!-- 文字 -->
+    <color name="assistant_text">#FFF4F4F8</color>
+    <color name="assistant_text_secondary">#FFA6A6B6</color>
+
+    <!-- 强调色：面板是深玻璃底，主色 #1E50D0 在这上面太闷，提亮一档 -->
+    <color name="assistant_accent">#FF7FA9FF</color>
+
+    <!-- Siri 光球四色（SiriOrbView 里也是这四支，别两边改） -->
+    <color name="assistant_siri_1">#FF1FC8FF</color>
+    <color name="assistant_siri_2">#FF8A5BFF</color>
+    <color name="assistant_siri_3">#FFFF4D9E</color>
+    <color name="assistant_siri_4">#FFFF9E4D</color>
+
+    <!-- 发送按钮的渐变 -->
+    <color name="assistant_send_start">#FF4F8CFF</color>
+    <color name="assistant_send_end">#FFB15CFF</color>
+</resources>

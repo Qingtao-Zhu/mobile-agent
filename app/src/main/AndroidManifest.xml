@@ -1,0 +1,188 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  DSHA-lite（com.dsh.assistant）—— 只带「手机助手」的轻量独立 App。
+  不带 rootfs / proot / Node / 终端 / Web(3080) / AdbBridge / 备份体系，冷启动免解包。
+  与 com.dsh.client（原 DSHA）共存，互不干扰。
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.VIBRATE" />
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+    <uses-permission android:name="android.permission.CHANGE_WIFI_STATE" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-permission android:name="android.permission.CALL_PHONE" />
+    <uses-permission android:name="android.permission.SEND_SMS" />
+    <uses-permission android:name="android.permission.READ_SMS" />
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+    <!-- 无障碍服务自愈要写 Settings.Secure，只能由 ADB（pm grant）授予 -->
+    <uses-permission android:name="android.permission.WRITE_SECURE_SETTINGS" />
+    <!--
+      助手配置 /sdcard/dsh/assistant-voice.json 在共享存储里，Android 11+ 分区存储下
+      不声明这个权限就读不到（实测 Permission denied）→ 配置加载为空 →
+      联网问答和语音唤醒全部失效（2026-10-11 真机踩到）。
+      原 DSHA 声明了它，轻量版必须跟上。
+      授权方式不是 pm grant，而是：
+        adb shell appops set com.dsh.assistant MANAGE_EXTERNAL_STORAGE allow
+    -->
+    <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE"
+        tools:ignore="ScopedStorage" />
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"
+        android:maxSdkVersion="29" />
+    <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES"
+        tools:ignore="QueryAllPackagesPermission" />
+
+    <application
+        android:allowBackup="false"
+        android:icon="@mipmap/ic_launcher"
+        android:label="DSHA 助手"
+        android:networkSecurityConfig="@xml/network_security_config"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.DeepseekHarness"
+        tools:targetApi="31">
+
+        <!--  核心：无障碍服务（读屏 + 手势，助手的一切都靠它）  -->
+        <service
+            android:name=".DshaAccessibilityService"
+            android:exported="false"
+            android:label="DSHA 助手"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/accessibility_service_config" />
+        </service>
+
+        <!--  入口  -->
+        <activity
+            android:name=".assistant.DshaAssistantActivity"
+            android:exported="true"
+            android:label="DSHA 助手">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+        <!-- 文本直达：外部（Tasker / adb / 快捷方式）一句话唤起 -->
+        <activity
+            android:name=".assistant.DshaAssistActivity"
+            android:exported="true"
+            android:excludeFromRecents="true"
+            android:theme="@style/Theme.DeepseekHarness" />
+        <activity
+            android:name=".assistant.AssistantMicActivity"
+            android:exported="false"
+            android:theme="@style/Theme.DeepseekHarness" />
+        <activity
+            android:name=".assistant.AssistantPermitActivity"
+            android:exported="false"
+            android:theme="@style/Theme.DeepseekHarness" />
+
+        <!-- 2026-10-11 大众化：统一权限管理页 + 首次使用引导 -->
+        <activity
+            android:name=".assistant.PermissionHubActivity"
+            android:exported="false"
+            android:label="权限与授权"
+            android:theme="@style/Theme.DeepseekHarness" />
+        <activity
+            android:name=".assistant.OnboardingActivity"
+            android:exported="false"
+            android:label="欢迎"
+            android:theme="@style/Theme.DeepseekHarness" />
+
+        <!--  语音唤醒前台服务  -->
+        <service
+            android:name=".assistant.AssistantWakeService"
+            android:exported="false"
+            android:foregroundServiceType="microphone" />
+
+        <!--  接收器  -->
+        <receiver
+            android:name=".BootReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.LOCKED_BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
+        <!-- 常驻兜底：系统持有的周期闹钟，进程被回收后仍能拉起自愈 -->
+        <receiver
+            android:name=".assistant.AssistantKeepAliveReceiver"
+            android:exported="false" />
+        <receiver
+            android:name=".assistant.DshaWakeReceiver"
+            android:exported="false" />
+        <receiver
+            android:name=".assistant.DshaAlarmReceiver"
+            android:exported="false" />
+
+        <!--  通知监听 / 磁贴 / 小组件 / 语音交互  -->
+        <service
+            android:name=".assistant.DshaNotificationListener"
+            android:exported="true"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
+        </service>
+        <service
+            android:name=".assistant.DshaAssistantTileService"
+            android:exported="true"
+            android:icon="@mipmap/ic_launcher"
+            android:label="DSHA 助手"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+        </service>
+        <receiver
+            android:name=".assistant.DshaReminderWidgetProvider"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/dsha_widget_info" />
+        </receiver>
+        <service
+            android:name=".assistant.DshaRecognitionService"
+            android:exported="true"
+            android:permission="android.permission.BIND_RECOGNITION_SERVICE">
+            <intent-filter>
+                <action android:name="android.speech.RecognitionService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.speech"
+                android:resource="@xml/voice_interaction_service" />
+        </service>
+        <service
+            android:name=".assistant.DshaVoiceInteractionService"
+            android:exported="true"
+            android:permission="android.permission.BIND_VOICE_INTERACTION">
+            <intent-filter>
+                <action android:name="android.speech.VoiceInteractionService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.voice_interaction"
+                android:resource="@xml/voice_interaction_service" />
+        </service>
+        <service
+            android:name=".assistant.DshaVoiceInteractionSessionService"
+            android:exported="false" />
+    </application>
+</manifest>

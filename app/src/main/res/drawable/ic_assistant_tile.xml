@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 快捷设置磁贴图标：话筒。系统会给磁贴图标染色，这里固定白色。 -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:fillColor="@android:color/transparent"
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="1.8"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M12,3 A3,3 0,0 1,15 6 V11 A3,3 0,0 1,9 11 V6 A3,3 0,0 1,12 3 Z M5,11 A7,7 0,0 0,19 11 M12,18 V21 M8.5,21 H15.5" />
+</vector>

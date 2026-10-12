@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  桌面小组件信息。minWidth/minHeight 故意给得小（1 格），
+  这样 4×4 / 2×2 / 2×1 / 1×1 四种尺寸桌面都放得进去，由 DshaReminderWidgetProvider
+  按实际尺寸挑 layout（见 provider 里的 onUpdate）。
+-->
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:minWidth="40dp"
+    android:minHeight="40dp"
+    android:updatePeriodMillis="60000"
+    android:initialLayout="@layout/dsha_widget_big"
+    android:resizeMode="horizontal|vertical"
+    android:widgetCategory="home_screen"
+    android:label="@string/dsha_widget_label"
+    android:description="@string/dsha_widget_desc"
+    android:previewImage="@drawable/dsha_widget_card" />

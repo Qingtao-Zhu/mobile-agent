@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- V2 助手面板文案，独立成文件避免碰 strings.xml。 -->
+<resources>
+    <string name="assistant_hint">问点什么，或者直接说…</string>
+    <string name="assistant_send">发送</string>
+    <string name="assistant_mic">语音</string>
+    <string name="assistant_mic_stop">停止</string>
+    <string name="assistant_copy">复制</string>
+    <string name="assistant_copied">已复制</string>
+    <string name="assistant_speak">朗读</string>
+    <string name="assistant_speaking">停止</string>
+    <string name="assistant_share">分享</string>
+    <string name="assistant_workbench">工作台</string>
+    <string name="assistant_refresh_screen">重读屏幕</string>
+    <string name="assistant_reading_screen">正在读取当前屏幕…</string>
+    <string name="assistant_listening">正在听…说完点停止，或等 30 秒自动停</string>
+    <string name="assistant_thinking">想一下…</string>
+    <string name="assistant_tile_label">DSHA 助手</string>
+    <!-- 桌面长按图标 → 快捷方式 上的两行字（short 空间紧，long 给长按菜单看）。 -->
+    <string name="assistant_shortcut_short">助手</string>
+    <string name="assistant_shortcut_long">对 DSHA 说话</string>
+    <!-- 桌面长按图标菜单的第二条：一句话就让助手读屏讲这页，不进主界面。 -->
+    <string name="assistant_shortcut2_short">这页</string>
+    <string name="assistant_shortcut2_long">这页在讲啥</string>
+    <string name="assistant_no_tts">这台机器没有可用的中文语音引擎，朗读用不了</string>
+    <!-- 桌面小组件：一个格子放一个提醒单位（2026-10-08）。 -->
+    <string name="dsha_widget_label">DSHA 提醒</string>
+    <string name="dsha_widget_desc">显示一个提醒单位：公交到站倒计时、定时提醒、待办。点一下就开助手。</string>
+</resources>

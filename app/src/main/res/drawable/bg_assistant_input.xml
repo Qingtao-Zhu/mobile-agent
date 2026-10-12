@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- V2 助手面板输入框：深色半透明底，聚焦时主色描边。不复用 bg_input，
+     那套是工作台亮色表面的配色，放在暗色面板上会突兀。 -->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:state_focused="true">
+        <shape android:shape="rectangle">
+            <solid android:color="#2EFFFFFF" />
+            <corners android:radius="14dp" />
+            <stroke
+                android:width="2dp"
+                android:color="@color/primary" />
+        </shape>
+    </item>
+    <item>
+        <shape android:shape="rectangle">
+            <solid android:color="#1FFFFFFF" />
+            <corners android:radius="14dp" />
+            <stroke
+                android:width="1dp"
+                android:color="#33FFFFFF" />
+        </shape>
+    </item>
+</selector>

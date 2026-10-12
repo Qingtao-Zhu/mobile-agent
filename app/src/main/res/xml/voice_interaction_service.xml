@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  DSHA 数字助理 · V1 配置
+
+  目标：Android 系统 Assistant 手势/按键 → DshaVoiceInteractionService
+        → DshaVoiceInteractionSessionService → 现有 MainActivity(open_launch=true)
+
+  · sessionService      必填，指向自定义 VoiceInteractionSessionService
+  · recognitionService  **也是必填**：框架 VoiceInteractionServiceInfo 缺这一项就设
+                        mParseError = "No recognitionService specified"，
+                        整个 VoiceInteractionService 判为非法
+                        （dumpsys voiceinteraction 打 "NOT VALID"，
+                          系统不绑定、RoleManager 也不给 android.app.role.ASSISTANT 角色）。
+                        这里指向一个空壳服务：不接 SpeechRecognizer、不做任何识别。
+  · supportsAssist      false：V1 不申请、不读取屏幕 Assist 上下文
+-->
+<voice-interaction-service xmlns:android="http://schemas.android.com/apk/res/android"
+    android:sessionService="com.deepseekharness.app.assistant.DshaVoiceInteractionSessionService"
+    android:recognitionService="com.deepseekharness.app.assistant.DshaRecognitionService"
+    android:supportsAssist="false" />

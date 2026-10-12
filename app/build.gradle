@@ -1,0 +1,58 @@
+plugins {
+    id 'com.android.application'
+}
+
+// DSHA 轻量版：只保留「手机助手」（悬浮球 / 面板 / 读屏 / 点按 / 语音唤醒 / TTS）。
+// 不带 offline-rootfs、proot、Node、终端、Web(3080)、AdbBridge、备份体系 —— 冷启动免解包。
+//
+// 关键取舍：namespace 沿用 com.deepseekharness.app（源码里的 package 声明一行都不用改），
+// 但 applicationId 换成 com.dsh.assistant —— 装到手机上是一个全新 App，
+// 与原来的 com.dsh.client 共存，互不干扰、共享同一套无障碍授权流程。
+android {
+    namespace 'com.deepseekharness.app'
+    compileSdk {
+        version = release(37)
+    }
+
+    defaultConfig {
+        applicationId "com.dsh.assistant"
+        minSdk 30
+        targetSdk 37
+        versionCode 1
+        versionName "1.0-lite"
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+        coreLibraryDesugaringEnabled true
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            // 先用 debug 钥匙串跑通装机流程；稳定后换成正式签名。
+            signingConfig signingConfigs.debug
+        }
+    }
+
+    // 原 DSHA 把大量资源塞进 assets（rootfs/runtime），这里一个都没有。
+    packaging {
+        resources {
+            excludes += ['/META-INF/*']
+        }
+    }
+}
+
+dependencies {
+    implementation 'androidx.appcompat:appcompat:1.6.1'
+    implementation 'com.google.android.material:material:1.11.0'
+    coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.0.4'
+
+    // 单元测试（2026-10-11 第二阶段 P0-2）
+    // 用户要求"不要让所有测试都依赖一个不稳定的模拟器" → 纯 JVM 单测覆盖不碰系统交互的逻辑。
+    // org.json 在 Android 上是系统自带，JVM 里没有，所以要显式引一份纯 Java 实现
+    // （API 与 Android 的 org.json 兼容，测试里用的 JSONObject/JSONArray 行为一致）。
+    testImplementation 'junit:junit:4.13.2'
+    testImplementation 'org.json:json:20231013'
+}

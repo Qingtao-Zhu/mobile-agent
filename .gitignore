@@ -1,0 +1,31 @@
+# 构建产物（可重生，不入库）
+build/
+.gradle/
+local.properties
+*.apk
+*.aab
+*.ap_
+*.dex
+*.class
+
+# IDE
+.idea/
+*.iml
+.DS_Store
+
+# 系统/临时
+*.log
+*.tmp
+*.temp
+*.bak-*
+captures/
+
+# 大体积运行时资产（与主仓库一致：被 .gitignore 忽略、只有本机一份）
+app/src/main/assets/dsh-runtime.bin
+app/src/main/assets/offline-rootfs.bin
+app/src/main/assets/ubuntu-tools.bin
+
+# 密钥与本地配置（绝不入库）
+*.jks
+*.keystore
+keystore.properties

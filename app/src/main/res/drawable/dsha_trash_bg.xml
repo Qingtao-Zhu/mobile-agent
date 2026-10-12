@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  悬浮球「删除区」的圆形底。
+  用半透明纯黑而不是浅色/红色：这台机上深色 App（微信）和浅色界面都会出现，
+  只有**不吃背景色**的半透明黑配白图标，两边都看得清。
+-->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="oval">
+    <solid android:color="#B3000000" />
+</shape>

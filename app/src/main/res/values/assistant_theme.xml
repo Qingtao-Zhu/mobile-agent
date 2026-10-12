@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- V2 助手面板主题：全屏透明窗口 + 轻微压暗，卡片背景由布局自绘。 -->
+<resources>
+    <style name="DshaAssistantPanelTheme" parent="@android:style/Theme.Material.NoActionBar">
+        <item name="android:windowIsTranslucent">true</item>
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <!-- 系统 DIM_BEHIND 在 EMUI 12 / Android 11 上会被渲染成全屏纯黑
+             （实测 SurfaceFlinger 里的 "Dim Layer for - DisplayArea.Root" 把面板下面整层盖死，
+             backgroundDimAmount=0.25 完全不生效）→ 关掉，改由布局里的 assistant_scrim 自绘。 -->
+        <item name="android:backgroundDimEnabled">false</item>
+        <item name="android:windowContentOverlay">@null</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:colorAccent">@color/primary</item>
+    </style>
+</resources>

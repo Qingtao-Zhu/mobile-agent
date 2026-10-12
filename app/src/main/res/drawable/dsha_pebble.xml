@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  悬浮球那颗小球的底。
+  2026-10-08 第一版是"半透明黑 + 白描边"，在微信深色聊天页上**完全看不见**（黑底黑球）。
+  改成浅灰底 + 深灰描边：深色界面上靠浅底跳出，浅色界面上靠深描边和内核还能看见。
+-->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="oval">
+    <solid android:color="#E9E9ED" />
+    <stroke
+        android:width="1.5dp"
+        android:color="#6E6E73" />
+</shape>

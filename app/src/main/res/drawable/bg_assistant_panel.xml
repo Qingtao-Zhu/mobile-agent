@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- V2 助手面板卡片：半透明深色底 + 顶部大圆角，吸底。 -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <solid android:color="@color/assistant_panel_bg" />
+    <corners
+        android:topLeftRadius="22dp"
+        android:topRightRadius="22dp" />
+</shape>

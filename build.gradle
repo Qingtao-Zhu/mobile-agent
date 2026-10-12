@@ -1,0 +1,5 @@
+// DSHA-lite：只带「手机助手」的轻量独立 App。
+// 不带 offline-rootfs / proot / Node / 终端 / Web，冷启动不用解包。
+plugins {
+    id 'com.android.application' version '9.1.1' apply false
+}

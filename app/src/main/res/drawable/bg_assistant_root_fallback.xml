@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 根布局的「首帧兜底」底：面板呼出到玻璃底图合成好之间的头一两百毫秒，
+     窗口里没画到的像素在这台 EMUI 12 上会被 HWC 合成成纯黑（不是透出下层），
+     四周留缝区会闪一圈黑边。给根布局垫一张和卡片同位、同圆角的深玻璃，
+     黑边就变成"面板正在浮现"的观感；玻璃底图就绪后这层会被换掉
+     （composeGlass 里 root.setBackground(真画面 1:1 裁块)）。 -->
+<inset xmlns:android="http://schemas.android.com/apk/res/android"
+    android:insetLeft="10dp"
+    android:insetTop="14dp"
+    android:insetRight="10dp"
+    android:insetBottom="8dp">
+    <shape android:shape="rectangle">
+        <solid android:color="@color/assistant_glass_base" />
+        <corners android:radius="32dp" />
+        <stroke
+            android:width="1dp"
+            android:color="@color/assistant_glass_stroke" />
+    </shape>
+</inset>

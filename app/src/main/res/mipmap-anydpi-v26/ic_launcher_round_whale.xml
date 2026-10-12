@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  圆形版启动器图标（2026-10-08 跟 ic_launcher_whale 一起换）。
+  内容故意和 ic_launcher_whale 一致：自适应图标是圆还是圆角方由系统 mask 决定，
+  round 版只是给只认 round 的启动器同一个前景，免得它们继续拿旧蓝底图标。
+-->
+<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+    <background android:drawable="@color/dsha_launcher_bg" />
+    <foreground android:drawable="@drawable/dsha_launcher_whale_fg" />
+</adaptive-icon>
