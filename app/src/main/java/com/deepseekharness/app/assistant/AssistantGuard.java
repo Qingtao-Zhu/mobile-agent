@@ -40,7 +40,7 @@ final class AssistantGuard {
 
   /** 用户点名放行：白名单优先于黑名单。 */
   private static final String[] ALLOWED = {
-    "com.tencent.mm", // 微信（含应用分身）—— 用户 2026-10-07 拍板：不需要防护，要能读能操作
+    "com.tencent.mm", // 微信 —— 用户 2026-10-07 拍板：不需要防护，要能读能操作
   };
 
   /** 涉钱涉密关键词（子串匹配，与 SensitiveAppPolicy 同一套写法；小写比较）。 */
@@ -71,7 +71,19 @@ final class AssistantGuard {
   static boolean isProtected(String pkg, java.util.List<String> allowed) {
     if (pkg == null || pkg.isEmpty()) return false;
     String p = pkg.toLowerCase(Locale.ROOT);
-    if (matchAny(p, ALLOWED)) return false; // 白名单一票放行
+    // ★ GD-01 修复（Phase 14）：白名单改为**精确匹配**。
+    //
+    // 原来是 matchAny()（contains 子串），导致任何"名字里含 com.tencent.mm"的包
+    // 都被一票放行 —— 而白名单优先于黑名单，于是连 com.tencent.mm.bank
+    // 这种含 bank 关键词的支付类包名也一并被放行。这是"漏拦"，方向是危险的。
+    //
+    // 为什么可以改精确：Android 原生多用户/工作资料机制下，应用分身
+    // **包名不变**（只有 userId 不同）；而部分厂商 ROM 的克隆体会用
+    // com.original.app.clone1 这类扩展包名 —— 这种场景本来就不该由
+    // "模糊匹配"自动放行，而应由用户在 assistant-voice.json 的
+    // allowedPackages 里**显式**加一行（外部白名单本来就是精确匹配）。
+    // 自动放行一个用户没点名过的包，比要求用户多点一次配置危险得多。
+    if (matchExact(p, ALLOWED)) return false; // 白名单一票放行
     if (allowed != null) {
       for (String rule : allowed) {
         if (rule != null && !rule.trim().isEmpty() && p.equals(rule.trim().toLowerCase(Locale.ROOT)))
@@ -81,6 +93,30 @@ final class AssistantGuard {
     return matchAny(p, MONEY_OR_SECRET);
   }
 
+  /**
+   * 精确匹配（大小写不敏感）。用于**白名单**。
+   *
+   * <p>白名单是"用户点名放行这一个应用"，语义就是精确到包名。
+   * 与外部白名单 {@code AssistantConfig.allowedPackages} 的匹配口径一致
+   * （那边一直是 {@code equals}，Phase 14 之前两边并不一致）。
+   */
+  private static boolean matchExact(String pkgLower, String[] rules) {
+    for (String key : rules) {
+      if (pkgLower.equals(key.toLowerCase(Locale.ROOT))) return true;
+    }
+    return false;
+  }
+
+  /**
+   * 子串匹配。仅用于**黑名单**。
+   *
+   * <p>黑名单的方向是"宁可多拦、不可漏拦"：{@code bank} 命中 {@code com.somebank.app}
+   * 这种名字相近的第三方包属于误伤（多拦），不危险；反过来若漏掉一个真银行，
+   * 助手就会在支付界面里读屏代操作。
+   *
+   * <p><b>为什么白名单和黑名单口径不同</b>（Phase 14 明确写下来，免得以后有人
+   * "顺手统一"）：模糊匹配对黑名单是保守的，对白名单是危险的。
+   */
   private static boolean matchAny(String pkgLower, String[] rules) {
     for (String key : rules) {
       if (pkgLower.contains(key)) return true;

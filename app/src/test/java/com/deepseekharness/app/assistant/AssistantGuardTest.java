@@ -152,69 +152,109 @@ public class AssistantGuardTest {
   }
 
   /**
-   * ★ 本测试首次运行即发现一个真实安全缺陷（Phase 11）。
+   * ★ GD-01 回归（Phase 14 修复）。
    *
-   * <p><b>缺陷</b>：白名单 {@code ALLOWED} 用的是 {@code matchAny()}（{@code contains} 子串），
-   * 不是精确匹配。因此任何<b>包含</b> {@code com.tencent.mm} 的包名都被放行，例如：
-   * <ul>
-   *   <li>{@code com.tencent.mmhelper}</li>
-   *   <li>{@code com.tencent.mm.fake}</li>
-   *   <li>{@code com.evil.tencent.mm.phishing}</li>
-   * </ul>
-   * 这意味着攻击者/误装一个名字里带 {@code com.tencent.mm} 的应用就能绕过整套敏感防护。
+   * <p><b>原缺陷</b>：白名单 {@code ALLOWED} 用 {@code matchAny()}（{@code contains} 子串），
+   * 任何<b>包含</b> {@code com.tencent.mm} 的包名都被一票放行。因为白名单优先于黑名单，
+   * 连 {@code com.tencent.mm.bank} 这种含 {@code bank} 关键词的支付类包名也一并被放行
+   * —— 装一个名字里带 {@code com.tencent.mm} 的应用就能绕过整套敏感防护。
    *
-   * <p><b>为什么不直接改生产代码</b>：把白名单从 {@code contains} 改成精确匹配
-   * 会改变"微信分身"等场景的语义（微信分身是否用扩展包名，需产品确认）。
-   * <b>这是产品决策，不是实现细节</b>，因此：
-   * <ul>
-   *   <li>本测试断言<b>当前真实行为</b>（保持套件绿色）</li>
-   *   <li>同时用 {@link #白名单子串匹配缺陷_必须被登记且不得恶化()} 盯着它</li>
-   *   <li>缺陷详情写入 {@code PHASE11-EXECUTION-REPORT.md}，提交给用户决策</li>
-   * </ul>
+   * <p><b>Phase 14 修复</b>：白名单改精确匹配（与外部白名单
+   * {@code AssistantConfig.allowedPackages} 的 {@code equals} 口径一致）。
+   * 分身包名场景改走显式配置 —— 见 {@link #分身包名可通过外部白名单显式放行}。
+   *
+   * <p>本条断言**修复后**的行为。原版本断言的是"当前真实行为"（相似包名被放行），
+   * 那是在缺陷未修时保持套件绿色的权宜写法；缺陷修好之后，它必须改成断言正确行为。
    */
   @Test
-  public void 相似包名_不是白名单那个也要按内容判定() {
-    // 当前实现：白名单是子串匹配 → 相似包名也被放行
-    assertFalse(
-        "【当前行为，已知缺陷】com.tencent.mmhelper 因白名单子串匹配而被放行",
-        AssistantGuard.isProtected("com.tencent.mmhelper"));
-    // ★ 更严重：连"银行类"相似包名也被放行 —— 因为白名单优先于黑名单，
-    //   而白名单是 contains 匹配。com.tencent.mm.bank 含 com.tencent.mm → 放行。
-    assertFalse(
-        "【当前行为，已知缺陷 GD-01】com.tencent.mm.bank 也因白名单子串匹配被放行"
-            + "（尽管它含 bank 关键词）—— 这正是 GD-01 的危险之处",
-        AssistantGuard.isProtected("com.tencent.mm.bank"));
-    // 对照：不含 com.tencent.mm 的 bank 包仍被正常拦截（黑名单本身是对的）
+  public void GD01_相似前缀不得绕过敏感防护() {
     assertTrue(
-        "不含白名单子串的 bank 包仍应被拦",
-        AssistantGuard.isProtected("com.somebank.app"));
+        "com.tencent.mmhelper 不是微信主包，不得因白名单被放行",
+        AssistantGuard.isProtected("com.tencent.mmhelper"));
+    assertTrue(
+        "com.tencent.mm.fake 是伪造包名，不得因白名单被放行",
+        AssistantGuard.isProtected("com.tencent.mm.fake"));
   }
 
-  /** 白名单缺陷登记表（key=缺陷编号，value=说明）。与 KNOWN_LEAKS 同思路：待修清单，非免责清单。 */
-  private static final java.util.Map<String, String> KNOWN_GUARD_DEFECTS =
-      java.util.Map.of(
-          "GD-01",
-          "AssistantGuard.ALLOWED 用 contains 子串匹配而非精确匹配，"
-              + "导致 com.tencent.mmhelper 等相似包名被放行（绕过敏感防护）；"
-              + "更严重的是白名单优先于黑名单，因此连 com.tencent.mm.bank 这类"
-              + "含 bank 关键词的支付类包名也一并被放行");
+  @Test
+  public void GD01_恶意伪造的支付类包名必须被拦截() {
+    // 最危险的一类：既含白名单子串、又含黑名单关键词
+    assertTrue(
+        "com.tencent.mm.bank 含 bank 关键词，且不是微信主包 —— 必须拦截",
+        AssistantGuard.isProtected("com.tencent.mm.bank"));
+    assertTrue(
+        "com.tencent.mm.alipay 含 alipay 关键词，必须拦截",
+        AssistantGuard.isProtected("com.tencent.mm.alipay"));
+    assertTrue(
+        "反向伪造 com.evil.tencent.mm 也必须拦截",
+        AssistantGuard.isProtected("com.evil.tencent.mm"));
+    assertTrue(
+        "钓鱼包 com.evil.tencent.mm.phishing 必须拦截",
+        AssistantGuard.isProtected("com.evil.tencent.mm.phishing"));
+  }
+
+  @Test
+  public void GD01_微信主包仍然放行() {
+    // 修复不得破坏用户拍板的放行
+    assertFalse("微信主包必须仍然放行", AssistantGuard.isProtected("com.tencent.mm"));
+  }
+
+  @Test
+  public void GD01_大小写行为明确() {
+    // 白名单大小写不敏感（与外部白名单一致）：大写也要能放行微信
+    assertFalse("COM.TENCENT.MM 应仍能放行微信", AssistantGuard.isProtected("COM.TENCENT.MM"));
+    // 但大小写不敏感不等于模糊匹配：伪造包名大写也一样被拦
+    assertTrue("COM.TENCENT.MM.BANK 大写也应被拦截",
+        AssistantGuard.isProtected("COM.TENCENT.MM.BANK"));
+    assertTrue("Com.Tencent.MMhelper 混合大小写也应被拦截",
+        AssistantGuard.isProtected("Com.Tencent.MMhelper"));
+  }
+
+  @Test
+  public void GD01_分身包名可通过外部白名单显式放行() {
+    // 兼容路径：厂商 ROM 若用 com.tencent.mm.clone1 这类扩展包名，
+    // 默认不再自动放行（安全优先），但用户可在 assistant-voice.json 里显式加一行。
+    assertTrue(
+        "默认情况下 com.tencent.mm.clone1 不再被自动放行",
+        AssistantGuard.isProtected("com.tencent.mm.clone1"));
+    assertFalse(
+        "用户在 allowedPackages 里显式点名后应放行",
+        AssistantGuard.isProtected(
+            "com.tencent.mm.clone1", Collections.singletonList("com.tencent.mm.clone1")));
+    // 外部白名单自身仍是精确匹配：点名 clone1 不会顺带放行 clone2
+    assertTrue(
+        "外部白名单精确匹配，点名 clone1 不放行 clone2",
+        AssistantGuard.isProtected(
+            "com.tencent.mm.clone2", Collections.singletonList("com.tencent.mm.clone1")));
+  }
+
+  /** 守卫缺陷登记表（key=缺陷编号，value=说明）。与 KNOWN_LEAKS 同思路：待修清单，非免责清单。 */
+  private static final java.util.Map<String, String> KNOWN_GUARD_DEFECTS = java.util.Map.of();
 
   /**
-   * 保证 GD-01 登记与代码实际状态一致：
-   * 一旦白名单改成精确匹配，本测试会提醒把登记划掉。
+   * 保证 GD-01 登记与代码实际状态一致（双向）。
+   *
+   * <ul>
+   *   <li>缺陷仍在（相似包名被放行）→ 登记必须保留（防止被悄悄删掉）</li>
+   *   <li>缺陷已修（白名单改精确匹配）→ 登记**必须划掉**（防止待修清单越积越脏）</li>
+   * </ul>
+   *
+   * <p>与 {@code LogPrivacyTest.KNOWN_LEAKS}、{@code REVIEWED_SITES}
+   * 是同一个"登记表必须与现实一致"的机制。
    */
   @Test
-  public void 白名单子串匹配缺陷_必须被登记且不得恶化() {
-    // 当前实现下，相似包名被放行 → 缺陷存在 → 登记必须保留
+  public void 守卫缺陷登记必须与实际情况一致() {
     boolean stillSubstringMatched = !AssistantGuard.isProtected("com.tencent.mmhelper");
     if (stillSubstringMatched) {
-      // 缺陷仍在：确认它已被登记（防止登记被悄悄删掉）
       assertTrue(
           "GD-01（白名单子串匹配）仍然存在，必须保留在 KNOWN_GUARD_DEFECTS 登记中",
           KNOWN_GUARD_DEFECTS.containsKey("GD-01"));
+    } else {
+      assertFalse(
+          "GD-01 已修复（白名单改精确匹配），登记必须划掉 —— "
+              + "留着只会让待修清单越积越脏，也说明没人维护它",
+          KNOWN_GUARD_DEFECTS.containsKey("GD-01"));
     }
-    // 若已改为精确匹配，本测试自动转为通过（提示可以划掉登记）
-    // —— 此处不断言"必须仍是子串"，以免锁死修复。
   }
 
   // ================================================================
