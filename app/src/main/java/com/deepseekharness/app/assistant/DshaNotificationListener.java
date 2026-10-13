@@ -8,6 +8,7 @@ import android.os.Bundle;
 import android.service.notification.StatusBarNotification;
 import android.service.notification.NotificationListenerService;
 import android.util.Log;
+import com.deepseekharness.app.util.SensitiveData;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -36,6 +37,16 @@ public final class DshaNotificationListener extends NotificationListenerService 
 
   /** 缓存够用就行：面板一次只念 8 条，60 条是留给"刚才那会儿"回看和断连兜底。 */
   private static final int KEEP = 60;
+
+  /**
+   * 单条通知对外输出的最大字符数（D-14 修复，Phase 13）。
+   *
+   * <p><b>念给用户（{@link #summarize}）和喂给模型（{@link #digest}）共用这一个数</b> ——
+   * 原先两个出口各有一套标准（前者 {@code clip(46)}、后者原样输出全文），
+   * 结果是"本地念出来的被截了、发去远端模型的反而是完整正文"，
+   * 这跟数据最小化的方向正好相反。统一口径后，哪一边都不会比另一边更宽。
+   */
+  static final int ITEM_CLIP = 46;
 
   private static volatile boolean connected;
   /** 最新在最前（对外给的是不可变副本，免得外部改到内部结构）。 */
@@ -74,7 +85,7 @@ public final class DshaNotificationListener extends NotificationListenerService 
     sb.append("通知栏 ").append(c.size()).append(" 条，");
     sb.append(c.size() > n ? "最近的 " : "").append(n).append(" 条是：");
     for (int i = 0; i < n; i++) {
-      sb.append('\n').append('·').append(' ').append(clip(c.get(i), 46));
+      sb.append('\n').append('·').append(' ').append(item(c.get(i)));
     }
     if (c.size() > n) sb.append("\n（还有 ").append(c.size() - n).append(" 条没念）");
     return sb.toString();
@@ -86,8 +97,32 @@ public final class DshaNotificationListener extends NotificationListenerService 
     if (c == null || c.isEmpty()) return "";
     StringBuilder sb = new StringBuilder();
     int n = Math.max(1, Math.min(want, c.size()));
-    for (int i = 0; i < n; i++) sb.append('\n').append('·').append(' ').append(c.get(i));
+    for (int i = 0; i < n; i++) sb.append('\n').append('·').append(' ').append(item(c.get(i)));
     return sb.toString();
+  }
+
+  /**
+   * 一条缓存条目 → 对外输出的形态。<b>两个出口共用这一个口径</b>（D-14 修复，Phase 13）。
+   *
+   * <p>顺序是<b>先脱敏、后截断</b>，不能反过来：先截断会把一个令牌截成半截，
+   * 既没脱掉、看日志的人也认不出那是什么东西。
+   */
+  static String item(String s) {
+    return clip(SensitiveData.redact(s), ITEM_CLIP);
+  }
+
+  /**
+   * 喂给模型那一整段（含小标题；没有通知就返回空串，调用方直接 append 即可）。
+   *
+   * <p><b>为什么把拼装挪到本类</b>（D-14 修复，Phase 13）：通知正文的最小化口径
+   * 应该归"持有通知的类"管，面板那边只决定"这次问话要不要带通知"。
+   * 拆开之后这段也能在 JVM 单测里被直接断言 —— 拼模型提示词的那条路
+   * 依赖 Activity / Config，在纯 JUnit 下测不了，而这条路能测。
+   */
+  static String modelSection(int want) {
+    String d = digest(want);
+    if (d.isEmpty()) return "";
+    return "\n【最近的通知（应用 标题：正文）】" + d + '\n';
   }
 
   // ---------------------------------------------------------------- 系统回调

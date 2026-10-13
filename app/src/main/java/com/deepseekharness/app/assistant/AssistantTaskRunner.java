@@ -309,8 +309,12 @@ final class AssistantTaskRunner {
         }
         int nl = dump.indexOf('\n');
         String pkgLine = (nl > 0 ? dump.substring(0, nl) : dump).trim();
-        String metrics = pkgLine + " 节点行=" + nodeLines + " 带viewId=" + withId
-            + " 带contentDescription=" + withCd + " 字符数=" + dump.length();
+        // D-15 修复（Phase 13）：原来这里是内联拼串，和 LogFormat.dumpMetrics
+        // 的输出逐字符一样，但**绕开了那个函数** —— 结果是 LogFormatTest 里
+        // "读屏指标不含节点文本"那条行为测试守护的是一段生产根本不走的影子逻辑，
+        // 真正跑在生产里的这行反而没有任何行为级覆盖。
+        // 改回调同一个函数，输出不变，测试才真的守在生产路径上。
+        String metrics = LogFormat.dumpMetrics(pkgLine, nodeLines, withId, withCd, dump.length());
         if (step == 1) {
           // 第一轮界面长什么样必须留痕（现在用指标代替正文）
           android.util.Log.i("DSHA/Task", "第一轮读屏指标: " + metrics);
@@ -688,7 +692,14 @@ final class AssistantTaskRunner {
                   if ((stillCleared && boxPresent2) || newBubble) {
                     android.util.Log.i("DSHA/Task",
                         p[2] + "点 (" + x + "," + y + ") 生效：落定后输入框仍清空"
-                            + (newBubble ? " 且聊天多出一条「" + beforeInput + "」气泡" : "")
+                            // D-16 修复（Phase 13）：beforeInput 是从屏幕上读出来的
+                            // **用户在输入框里亲手打的字**（inputText() 取自无障碍节点树）。
+                            // 原来把它原样写进 logcat —— 那是用户要发出去的消息正文，
+                            // 属于"用户可控内容"，跟 D-06 那条"屏幕正文不得进日志"是同一类问题。
+                            // 现在只记字数：排障要的是"气泡多了没有"，不是"那条消息说了什么"。
+                            + (newBubble
+                                ? " 且聊天多出一条新气泡（匹配文字 " + LogFormat.size(beforeInput) + "）"
+                                : "")
                             + "，消息已发出");
                     return true;
                   }
@@ -1032,7 +1043,9 @@ final class AssistantTaskRunner {
     String resp =
         AssistantApiClient.chat(
             cfg.chatEndpoint, cfg.chatModel, key, messages, 800);
-    android.util.Log.i("DSHA/Task", "模型动作: " + resp);
+    // D-13 修复（Phase 13）：原来把模型完整响应 JSON 直接打进 logcat，
+    // 里面可能夹带从屏幕/通知读到的正文。现在只记长度。
+    android.util.Log.i("DSHA/Task", LogFormat.modelAction(resp));
     return resp;
   }
 

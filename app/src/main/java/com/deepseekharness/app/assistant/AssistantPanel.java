@@ -357,8 +357,11 @@ public final class AssistantPanel {
   private void runText(String question) {
     if (!attached || asking) return;
     AssistantCommands.Outcome o = localOutcome(question);
-    android.util.Log.i(TAG, "runText: " + question + " -> handled=" + o.handled
-        + " dismiss=" + o.dismiss + " reply=" + o.reply);
+    // D-12 修复（Phase 13）：原来把用户输入 question 与模型回复 o.reply 直接
+    // 拼进 logcat。现在 question 走 LogFormat.directAsk（只记字数），
+    // o.reply 完全不再进日志 —— 回复正文只在面板上给用户看。
+    android.util.Log.i(TAG, "runText: " + LogFormat.directAsk(question)
+        + " handled=" + o.handled + " dismiss=" + o.dismiss);
     remember(question, o.handled);
     if (o.handled) {
       showAnswer(o.reply == null ? "" : o.reply);
@@ -1140,11 +1143,10 @@ public final class AssistantPanel {
     // 通知栏（2026-10-07 起）：用户问"谁在找我 / 通知有啥"时，把最近的几条一起给模型，
     // 免得它凭空猜。没开通知使用权 / 问的是别的事就不带 —— 通知里可能有验证码和人名，
     // 不追问就不读，跟读屏那套隐私口径一个样。
+    // D-14 修复（Phase 13）：拼装与最小化口径一并交给 DshaNotificationListener.modelSection，
+    // 这里只决定"带不带"。条目的截断 + 脱敏在那边两个出口共用同一份实现。
     if (mentionsNotify(question) && DshaNotificationListener.isConnected()) {
-      String digest = DshaNotificationListener.digest(5);
-      if (!digest.isEmpty()) {
-        user.append("\n【最近的通知（应用 标题：正文）】").append(digest).append('\n');
-      }
+      user.append(DshaNotificationListener.modelSection(5));
     }
     user.append("\n【我的问题】").append(question);
 

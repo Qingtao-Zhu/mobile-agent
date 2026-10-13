@@ -194,6 +194,128 @@ public class LogFormatTest {
   // 5. 生产代码路径覆盖（防止测试守护影子逻辑）
   // ================================================================
 
+  // ================================================================
+  // 6. Phase 13：反射全覆盖 + 反影子逻辑
+  // ================================================================
+
+  /** 唯一标记：只在测试里编出来的串，任何真实内容里都不会出现。 */
+  private static final String MARK = "LFMARK9X2QP";
+
+  /**
+   * 每个 LogFormat 方法里"<b>哪个参数是用户内容</b>"的登记表。
+   *
+   * <p><b>为什么必须有这张表</b>：Phase 13 把 {@code LogFormat} 这个类名放进了
+   * {@code LogPrivacyTest.SAFE_FIELDS}，理由不能只是"名字听着安全" ——
+   * 万一以后有人加一个 {@code LogFormat.leakAll(text)}，白名单照样放行。
+   * 这张表 + 下面两条测试给出真正的理由：
+   * <ul>
+   *   <li>枚举<b>每一个</b>静态方法，逐个喂唯一标记，断言输出里找不到它
+   *       （连"截断后残留的前 12 个字符"也断言找不到 ——
+   *        防止有人拿"截断"冒充"不记"）；</li>
+   *   <li>表里没登记的方法 → 测试失败，逼着新增方法的人先声明参数意图。</li>
+   * </ul>
+   */
+  private static final java.util.Map<String, int[]> CONTENT_ARGS =
+      java.util.Map.of(
+          "size", new int[] {0},                 // 只输出"N 字"
+          "speechRecognized", new int[] {0},     // 用户说的话
+          "directAsk", new int[] {0},            // 用户输入的问题
+          "taskStart", new int[] {1},            // goal 是内容；appLabel 是应用名（结构性）
+          "taskEnd", new int[] {0},              // 结束语含任务内容
+          "alarmFired", new int[] {0},           // 提醒内容是用户写的
+          "dumpMetrics", new int[] {},           // 第 0 参是"窗口应用: 包名"行（结构性）
+          "guardBlocked", new int[] {},          // 判定名 + 包名（结构性）
+          "modelAction", new int[] {0});         // 模型完整响应（D-13）
+
+  @Test
+  public void LogFormat每个方法都必须在内容参数表里登记() {
+    java.util.List<String> missing = new java.util.ArrayList<>();
+    for (java.lang.reflect.Method m : LogFormat.class.getDeclaredMethods()) {
+      if (!java.lang.reflect.Modifier.isStatic(m.getModifiers())) continue;
+      if (!CONTENT_ARGS.containsKey(m.getName())) missing.add(m.getName());
+    }
+    assertTrue(
+        "以下 LogFormat 方法还没在 CONTENT_ARGS 里声明'哪个参数是用户内容'："
+            + missing + "（新增方法必须先声明，否则下面的漏出测试会自动跳过它）",
+        missing.isEmpty());
+  }
+
+  @Test
+  public void LogFormat每个方法都不得回吐传入的内容() throws Exception {
+    java.util.List<String> leaks = new java.util.ArrayList<>();
+    String head = MARK.substring(0, 8); // 截断残留也要能抓到
+
+    for (java.lang.reflect.Method m : LogFormat.class.getDeclaredMethods()) {
+      if (!java.lang.reflect.Modifier.isStatic(m.getModifiers())) continue;
+      m.setAccessible(true);
+      int[] contentAt = CONTENT_ARGS.get(m.getName());
+      if (contentAt == null) continue;
+
+      Class<?>[] types = m.getParameterTypes();
+      Object[] args = new Object[types.length];
+      for (int i = 0; i < types.length; i++) {
+        boolean isContent = false;
+        for (int idx : contentAt) {
+          if (idx == i) isContent = true;
+        }
+        if (isContent) args[i] = MARK + "_尾巴_" + MARK;
+        else if (types[i] == String.class) args[i] = "com.example.app";
+        else if (types[i] == boolean.class) args[i] = Boolean.FALSE;
+        else if (types[i] == int.class) args[i] = Integer.valueOf(7);
+        else if (types[i] == long.class) args[i] = Long.valueOf(7L);
+        else args[i] = null;
+      }
+
+      Object out = m.invoke(null, args);
+      if (!(out instanceof String)) continue;
+      String s = (String) out;
+      if (s.contains(MARK) || s.contains(head)) {
+        leaks.add(m.getName() + " → " + s);
+      }
+    }
+    assertTrue(
+        "以下 LogFormat 方法把传入的内容回吐了（含截断残留）：\n" + String.join("\n", leaks),
+        leaks.isEmpty());
+  }
+
+  /**
+   * 允许"有行为测试但生产没直接调用"的方法 —— <b>必须写明原因与处置</b>。
+   *
+   * <p>反过来：表里登记了、但生产里已经被调用了 → 测试失败，逼着把这个条目删掉。
+   * 这样"死代码冒充已覆盖"这件事会被一直盯着，不会慢慢烂掉。
+   */
+  private static final java.util.Map<String, String> NOT_DIRECTLY_CALLED =
+      java.util.Map.of(
+          "guardBlocked",
+              "零调用（Phase 13 登记 D-15）：生产的守卫拦截日志走的是 "
+                  + "GuardDecision.logReason(verdict, curPkg)（AssistantTaskRunner:343），"
+                  + "不经过本方法。待决：要么接进来、要么删掉，"
+                  + "不能长期留着一个'看起来被测过、实际没人用'的函数。");
+
+  @Test
+  public void 不许死代码冒充已被测试覆盖() throws Exception {
+    java.util.List<String> unwired = new java.util.ArrayList<>();
+    java.util.List<String> stale = new java.util.ArrayList<>();
+
+    for (java.lang.reflect.Method m : LogFormat.class.getDeclaredMethods()) {
+      if (!java.lang.reflect.Modifier.isStatic(m.getModifiers())) continue;
+      String name = m.getName();
+      boolean called = false;
+      for (String src : productionSources()) {
+        if (src.contains("LogFormat." + name + "(")) called = true;
+      }
+      if (!called && !NOT_DIRECTLY_CALLED.containsKey(name)) unwired.add(name);
+      if (called && NOT_DIRECTLY_CALLED.containsKey(name)) {
+        stale.add(name + "（登记说它没被调用，但现在生产里已经调了，请删掉这条登记）");
+      }
+    }
+    assertTrue(
+        "以下 LogFormat 方法生产里根本没调用，却在 LogFormatTest 里有行为测试 —— "
+            + "那是影子逻辑，测了等于没测：" + unwired,
+        unwired.isEmpty());
+    assertTrue("死代码登记表已过期：\n" + String.join("\n", stale), stale.isEmpty());
+  }
+
   @Test
   public void 生产代码确实调用了LogFormat() throws Exception {
     java.nio.file.Path root = findRoot();
@@ -220,5 +342,29 @@ public class LogFormatTest {
       if (java.nio.file.Files.exists(p)) return p;
     }
     throw new AssertionError("找不到生产源码根目录");
+  }
+
+  /** 收集生产源码全文（去掉注释行），供"有没有真的被生产调用"这类断言使用。 */
+  private static java.util.List<String> productionSources() throws Exception {
+    java.nio.file.Path root = findRoot();
+    java.util.List<String> out = new java.util.ArrayList<>();
+    for (java.nio.file.Path p :
+        java.nio.file.Files.walk(root)
+            .filter(x -> x.toString().endsWith(".java"))
+            .filter(x -> !x.toString().contains("/test/"))
+            .collect(java.util.stream.Collectors.toList())) {
+      StringBuilder sb = new StringBuilder();
+      for (String line :
+          new String(java.nio.file.Files.readAllBytes(p),
+              java.nio.charset.StandardCharsets.UTF_8).split("\n")) {
+        String t = line.trim();
+        if (t.startsWith("//") || t.startsWith("*") || t.startsWith("/*")) continue;
+        int c = line.indexOf("//");
+        sb.append(c >= 0 ? line.substring(0, c) : line).append('\n');
+      }
+      out.add(sb.toString());
+    }
+    assertFalse("应能找到生产源码", out.isEmpty());
+    return out;
   }
 }

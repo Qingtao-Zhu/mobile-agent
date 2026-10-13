@@ -66,4 +66,25 @@ final class LogFormat {
   static String guardBlocked(int step, String verdictName, String pkg) {
     return "第" + step + "步守卫拦截: " + verdictName + " 包=" + pkg;
   }
+
+  /**
+   * 模型动作响应（D-13 修复，Phase 13）。
+   *
+   * <p>{@code resp} 是模型的完整响应 JSON —— 里面既有 {@code act}/{@code args}
+   * 这类结构化信息，也可能夹带从屏幕/通知读到的正文。原来直接
+   * {@code "模型动作: " + resp} 把整段 JSON 打进 logcat，等于把用户的屏幕和通知
+   * 内容复制到日志里。
+   *
+   * <p>现在只记长度。需要看具体动作时，日志里已有的
+   * {@link #guardBlocked} / {@link #taskStart} / {@link #taskEnd} 会给出阶段、
+   * 包名、代次与成败，足够定位是哪一步；真要调试单个响应，
+   * 应临时用 debug 构建 + 本地断点，不要靠常驻日志。
+   *
+   * <p><b>刻意不用"截断"代替"不记"</b>：{@code resp.substring(0, 80)} 之类看着
+   * 干净，但响应的前 80 字符往往正是 act/args 附近、最容易带正文的位置。
+   */
+  static String modelAction(String resp) {
+    return "模型动作: " + size(resp);
+  }
+
 }

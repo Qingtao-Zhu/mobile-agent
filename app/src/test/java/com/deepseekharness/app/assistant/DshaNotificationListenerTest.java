@@ -186,9 +186,201 @@ public class DshaNotificationListenerTest {
     assertFalse("summarize 必须截断，不得原样包含整条长通知",
         sum.contains(sb.toString()));
 
-    // digest 目前不截断（这是设计：喂给模型的要完整）——
-    // 这一点记为已知特性，在报告中说明其隐私含义
+    // ★ 本条断言在 Phase 13 被**改正**（原文是 assertTrue(dig.contains(...))，
+    //   即"digest 必须原样吐出完整长通知"）。
+    //   那个方向是错的：它把"喂模型的出口不做最小化"这条缺陷固化成了"设计"，
+    //   等于给后来的修复设了一道测试障碍。D-14 修复后两个出口共用 item()，
+    //   断言随之改为"digest 同样不得原样吐出"，才是数据最小化应有的方向。
     String dig = call("digest", new Class<?>[] {int.class}, 1);
-    assertTrue("digest 设计上给完整条目（喂模型用）", dig.contains(sb.toString()));
+    assertNotNull(dig);
+    assertFalse("digest 也必须截断：喂给远端模型的正文不该比念给用户听的更完整",
+        dig.contains(sb.toString()));
+  }
+
+  // ================================================================
+  // 5. D-14 回归（Phase 13）：通知正文进模型提示词之前的数据流
+  // ================================================================
+
+  /** 唯一标记：只在测试里编出来的串，真实通知里不可能出现。 */
+  private static final String MARK = "NTMARK7F3QZ";
+
+  /** 造一条"长通知"，把唯一标记放在尾部 —— 只有不做截断，标记才会漏出去。 */
+  private static String longNoticeWithTailMark() {
+    StringBuilder body = new StringBuilder("张三：");
+    for (int i = 0; i < 60; i++) body.append('正');
+    body.append(MARK);
+    return body.toString();
+  }
+
+  @Test
+  public void D14_尾部标记不得经模型段落漏出() throws Exception {
+    setCache(Arrays.asList(longNoticeWithTailMark()));
+    String section = DshaNotificationListener.modelSection(5);
+    assertFalse(
+        "喂给模型的通知段落里不得出现通知尾部内容（说明没做最小化）",
+        section.contains(MARK));
+    assertTrue("段落应带上小标题", section.contains("【最近的通知"));
+  }
+
+  @Test
+  public void D14_念给用户与喂给模型必须用同一个最小化口径() throws Exception {
+    setCache(Arrays.asList(longNoticeWithTailMark()));
+
+    String sum = call("summarize", new Class<?>[] {int.class}, 1);
+    String dig = call("digest", new Class<?>[] {int.class}, 1);
+
+    String sumItem = sum.substring(sum.indexOf("· ") + 2).trim();
+    String digItem = dig.substring(dig.indexOf("· ") + 2).trim();
+    assertEquals(
+        "两条出口对同一条缓存必须产出完全相同的条目（口径不一致就是最小化缺口）",
+        sumItem, digItem);
+    assertFalse("两边都不应含尾部标记", sum.contains(MARK) || dig.contains(MARK));
+  }
+
+  @Test
+  public void D14_单条输出长度不得超过上限() throws Exception {
+    setCache(Arrays.asList(longNoticeWithTailMark(), "短一条"));
+    String dig = call("digest", new Class<?>[] {int.class}, 5);
+    for (String part : dig.split("\n· ")) {
+      if (part.trim().isEmpty()) continue;
+      assertTrue(
+          "单条输出应 <= " + (DshaNotificationListener.ITEM_CLIP) + " 字符，实际 "
+              + part.length() + "：" + part,
+          part.trim().length() <= DshaNotificationListener.ITEM_CLIP);
+    }
+  }
+
+  @Test
+  public void D14_通知里的令牌形状串不得原样进模型段落() throws Exception {
+    // 假令牌（格式像、值是编的，不会被任何服务接受）
+    String fake = "sk-FAKE000011112222333344445555";
+    setCache(Arrays.asList("快递通知 取件码在 " + fake + " 后面那几位"));
+    String section = DshaNotificationListener.modelSection(5);
+    assertFalse("令牌形状串必须先过脱敏再进模型请求", section.contains(fake));
+  }
+
+  @Test
+  public void D14_没通知时模型段落必须是空串() throws Exception {
+    setCache(null);
+    assertEquals("缓存为 null 时不应往提示词里塞任何东西",
+        "", DshaNotificationListener.modelSection(5));
+    setCache(Arrays.asList());
+    assertEquals("空缓存同理", "", DshaNotificationListener.modelSection(5));
+  }
+
+  @Test
+  public void D14_异常条目不崩且不放大内容() throws Exception {
+    // 缓存里混进 null / 超长 / 空白，出口都不能炸，也不能把缓存整体吐出来
+    StringBuilder huge = new StringBuilder();
+    for (int i = 0; i < 5000; i++) huge.append('X');
+    setCache(Arrays.asList(null, "", "   ", huge.toString(), null));
+    String section = DshaNotificationListener.modelSection(5);
+    assertNotNull("不应抛异常", section);
+    assertFalse("超长条目不得原样进提示词", section.contains(huge.toString()));
+    assertTrue("输出本身也要有界（5000 字的条目不该带出几千字）", section.length() < 500);
+  }
+
+  // ---------------------------------------------------------------- 门控
+
+  private static boolean mentionsNotify(String q) throws Exception {
+    Method m = AssistantPanel.class.getDeclaredMethod("mentionsNotify", String.class);
+    m.setAccessible(true);
+    return (Boolean) m.invoke(null, q);
+  }
+
+  @Test
+  public void D14_门控_不问通知时不得命中() throws Exception {
+    assertFalse("今天天气怎么样", mentionsNotify("今天天气怎么样"));
+    assertFalse("帮我定个闹钟", mentionsNotify("帮我定个闹钟"));
+    assertFalse("这句话里有个通知两个字但没在问", mentionsNotify("把通知栏开关打开"));
+    assertFalse("null 问题", mentionsNotify(null));
+  }
+
+  @Test
+  public void D14_门控_问通知时要命中() throws Exception {
+    assertTrue("谁在找我", mentionsNotify("谁在找我"));
+    assertTrue("通知栏有啥", mentionsNotify("通知栏有啥"));
+    assertTrue("有啥消息", mentionsNotify("看看有啥消息"));
+  }
+
+  /**
+   * 门控的**接线**是否正确（{@code modelSection} 必须挂在 {@code mentionsNotify &&
+   * isConnected} 这个条件里）。
+   *
+   * <p>为什么只能用静态断言：{@code AssistantPanel.askModel} 依赖 Activity / Config /
+   * API Key，纯 JUnit 环境（本机没配 Robolectric）里跑不起来，
+   * 所以"整段提示词真的不含通知正文"这条无法在本机做行为级验证 —— 记为
+   * <b>NOT TESTED</b>，不冒充 PASS。这条静态断言 + 上面 {@code modelSection} 的
+   * 行为测试，是目前能拿到的最强证据。
+   */
+  @Test
+  public void D14_模型段落的调用点必须被门控包住() throws Exception {
+    String src = readMainSource("AssistantPanel.java");
+    assertTrue("提示词里必须存在 modelSection 调用", src.contains("DshaNotificationListener.modelSection("));
+    assertTrue(
+        "modelSection 必须挂在 mentionsNotify(question) 与 isConnected() 的双重条件内",
+        src.contains("if (mentionsNotify(question) && DshaNotificationListener.isConnected())"));
+    assertFalse(
+        "不得出现不被门控的 digest 直调（绕开最小化口径的旧写法）",
+        src.contains("DshaNotificationListener.digest("));
+  }
+
+  /**
+   * 入口闸门：{@code line()} 必须在**入库时**就用 {@link AssistantGuard} 过滤敏感包名。
+   *
+   * <p>这是目前 digest 路径上唯一的"按来源"保护 —— {@code transit()} 那道
+   * {@code isProtected} 只在公交类通知上触发，管不到 digest（见 DATA-FLOW-FINDINGS）。
+   * 所以这道闸门的正确性格外关键，而它依赖的 {@code AssistantGuard.isProtected}
+   * 由 {@code AssistantGuardTest} 做行为级覆盖（18 条）；这里只能静态确认"确实接了线"。
+   */
+  @Test
+  public void D14_入库闸门必须调用敏感应用判定() throws Exception {
+    String src = readMainSource("DshaNotificationListener.java");
+    assertTrue("line() 必须在入库前判定受保护包名",
+        src.contains("if (AssistantGuard.isProtected(pkg)) return null;"));
+    assertTrue("transit() 那道纵深防御应保留",
+        src.contains("if (AssistantGuard.isProtected(pkg)) return;"));
+    // ★ 这里数的是**出现次数**，不是 contains —— 变异 M5（只把 digest 改回 c.get(i)）
+    //   实测证明：summary 还在用 item()，src.contains(...) 依然为真，
+    //   那条断言会**放过**"两个出口口径不一致"这个正是 D-14 要防的问题。
+    //   必须两个出口都在用，所以要求 >= 2 处。
+    int itemUses = 0;
+    int at = 0;
+    while ((at = src.indexOf("item(c.get(i))", at)) >= 0) {
+      itemUses++;
+      at += "item(c.get(i))".length();
+    }
+    assertTrue(
+        "summarize 与 digest 两个出口都必须走 item()，实际只有 " + itemUses + " 处在用",
+        itemUses >= 2);
+  }
+
+  /** 读一个生产源码文件（纯代码，去掉注释行）。 */
+  private static String readMainSource(String fileName) throws Exception {
+    java.nio.file.Path[] roots = {
+      java.nio.file.Paths.get("src/main/java/com/deepseekharness/app"),
+      java.nio.file.Paths.get("app/src/main/java/com/deepseekharness/app"),
+      java.nio.file.Paths.get("../app/src/main/java/com/deepseekharness/app")
+    };
+    for (java.nio.file.Path root : roots) {
+      if (!java.nio.file.Files.exists(root)) continue;
+      java.util.List<java.nio.file.Path> hits = new java.util.ArrayList<>();
+      java.nio.file.Files.walk(root)
+          .filter(p -> p.getFileName().toString().equals(fileName))
+          .forEach(hits::add);
+      if (hits.isEmpty()) continue;
+      StringBuilder out = new StringBuilder();
+      for (String line :
+          new String(java.nio.file.Files.readAllBytes(hits.get(0)),
+              java.nio.charset.StandardCharsets.UTF_8).split("\n")) {
+        String t = line.trim();
+        if (t.startsWith("//") || t.startsWith("*") || t.startsWith("/*")) continue;
+        int c = line.indexOf("//");
+        out.append(c >= 0 ? line.substring(0, c) : line).append('\n');
+      }
+      return out.toString();
+    }
+    throw new AssertionError("找不到生产源码：" + fileName
+        + "（cwd=" + java.nio.file.Paths.get("").toAbsolutePath() + "）");
   }
 }
