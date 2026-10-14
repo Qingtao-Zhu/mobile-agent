@@ -50,7 +50,9 @@ jobs:
           ls "$ANDROID_SDK_ROOT/platforms" || true
 
       - name: Gradle 编译
-        run: ./gradlew :app:compileDebugJavaWithJavac --no-daemon --stacktrace
+        run: |
+          chmod +x gradlew || true
+          ./gradlew :app:compileDebugJavaWithJavac --no-daemon --stacktrace
 
       - name: 单元测试
         run: ./gradlew :app:testDebugUnitTest --no-daemon --stacktrace
