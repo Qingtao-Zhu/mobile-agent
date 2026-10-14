@@ -135,7 +135,7 @@ final class LogTaint {
 
   private static final String[] SANITIZERS = {
     "LogFormat.", "SensitiveData.redact", ".length()", ".size()", ".isEmpty()",
-    "String.valueOf(", "Integer.toString(", "Long.toString(", "Boolean.toString(",
+    "Integer.toString(", "Long.toString(", "Boolean.toString(",
     // ── 以下两条是 Phase 16 实测后补的，依据都是生产代码自己的契约 ──
     // GuardDecision.extractPackage(dump)：只取 dump 首行的**包名**，
     //   丢掉全部屏幕正文 → 属于"降维到结构化标识"，不是内容。
@@ -144,6 +144,15 @@ final class LogTaint {
     // GuardDecision.logReason(v, pkg)：javadoc 原文"给日志用的拒绝原因（不包含屏幕内容）"，
     //   与 LogFormat 同类的结构化格式化器。
     "GuardDecision.logReason(",
+    // ★★ 注意：这里**故意没有** "String.valueOf(" ★★
+    //
+    // 它曾经在名单里，是 Phase 16 第二次独立审查攻破的第一条：
+    //     android.util.Log.i(TAG, "q=" + String.valueOf(question));
+    // 对String 参数，String.valueOf 是**恒等函数**（原样返回），
+    // 于是"名字看着像净化器、实际原样回吐"—— 一行代码、零测试改动，绕过整套检测。
+    // 取消登记之后它不再是净化器，污点照常传到 sink。
+    // （代价：`String.valueOf(someInt)` 这类本来安全的写法现在会被判为可疑 ——
+    //   但 int 变量不会被种上污点，所以实际不产生假阳性。）
   };
 
   // ==================================================================
@@ -174,7 +183,8 @@ final class LogTaint {
    */
   private static final Pattern ASSIGN =
       Pattern.compile(
-          "(?:^|[;{}\\n])\\s*(?:([\\w<>\\[\\],.?]+?)\\s+)?([a-zA-Z_]\\w*)\\s*=\\s*([^;{}=+\\-\\n][^;{}]*);");
+          "(?:^|[;{}\\n])\\s*(?:((?:(?:final|static|var)\\s+)*[\\w<>\\[\\],.?]+)\\s+)?"
+              + "([a-zA-Z_]\\w*)\\s*=\\s*([^;{}=+\\-\\n][^;{}]*);");
 
   private static final Pattern IDENT = Pattern.compile("[a-zA-Z_][a-zA-Z0-9_]*");
 
@@ -291,6 +301,28 @@ final class LogTaint {
             + "    android.util.Log.i(TAG, \"q=\" + p3);\n"
             + "  }\n}\n",
         true));
+    // ── 以下两条是 Phase 16 第二次独立审查**攻破过**的形状，现已永久纳入自证 ──
+    // 它们当时都能让 253 条测试全绿：
+    out.add(new CanaryCase("ATTACK_String_valueOf",
+        "class AssistantPanel {\n"
+            + "  private void runText(String question) {\n"
+            + "    android.util.Log.i(TAG, \"q=\" + String.valueOf(question));\n"
+            + "  }\n}\n",
+        true));
+    out.add(new CanaryCase("ATTACK_final_String",
+        "class AssistantPanel {\n"
+            + "  private void runText(String question) {\n"
+            + "    final String e = question;\n"
+            + "    android.util.Log.i(TAG, \"q=\" + e);\n"
+            + "  }\n}\n",
+        true));
+    out.add(new CanaryCase("ATTACK_var_推断类型",
+        "class AssistantPanel {\n"
+            + "  private void runText(String question) {\n"
+            + "    var e = question;\n"
+            + "    android.util.Log.i(TAG, \"q=\" + e);\n"
+            + "  }\n}\n",
+        true));
     return out;
   }
 
@@ -398,6 +430,9 @@ final class LogTaint {
     String s = t.trim();
     return s.equals("String")
         || s.equals("String...")
+        // `var x = ...` 类型靠推断。按 String 处理是**保守方向**（宁可多标污点），
+        // 与"漏检比误报危险"的取向一致。
+        || s.endsWith("var")
         || s.endsWith(".String")
         || s.endsWith(" String")
         || s.endsWith(" String...");
