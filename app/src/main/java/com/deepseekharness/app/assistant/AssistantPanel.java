@@ -1145,9 +1145,13 @@ public final class AssistantPanel {
     // 不追问就不读，跟读屏那套隐私口径一个样。
     // D-14 修复（Phase 13）：拼装与最小化口径一并交给 DshaNotificationListener.modelSection，
     // 这里只决定"带不带"。条目的截断 + 脱敏在那边两个出口共用同一份实现。
-    if (mentionsNotify(question) && DshaNotificationListener.isConnected()) {
-      user.append(DshaNotificationListener.modelSection(5));
-    }
+    // ★ Phase 16 修复 P1-2：通知段改走**唯一的带门控入口**。
+    //   原来是 `if (mentionsNotify(question) && isConnected()) { modelSection(5); }` ——
+    //   门控写在调用方，于是"旁边再加一处不带门控的 modelSection() 调用"就能绕过，
+    //   而测试只查字面量，抓不到（Phase 15 独立审查已实测）。
+    //   现在门控搬进 DshaNotificationListener.modelSectionFor()，调用方只负责
+    //   把"用户这次问的是不是通知"这个布尔值传进去；allow 为假一律返回空串。
+    user.append(DshaNotificationListener.modelSectionFor(mentionsNotify(question), 5));
     user.append("\n【我的问题】").append(question);
 
     String system =

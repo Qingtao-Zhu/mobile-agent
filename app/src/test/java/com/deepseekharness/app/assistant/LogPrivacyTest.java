@@ -909,6 +909,111 @@ public class LogPrivacyTest {
   }
 
   // ================================================================
+  // 2.5 SOURCE → SINK 污点分析（Phase 16 新增，修 P1-1）
+  // ================================================================
+
+  /**
+   * ★ <b>Phase 16 P1-1 的核心修复</b>：不再靠"变量名"判断，改用
+   * {@link LogTaint} 做 SOURCE → SINK 污点分析。
+   *
+   * <p><b>为什么要换模型</b>：旧检查判的是"Log 参数里有没有出现某个名字"。
+   * Phase 15 独立审查实测：
+   * <pre>
+   *   String e = question;                     // 用户输入 → 变量 e
+   *   android.util.Log.i(TAG, "x=" + e);       // e 不在任何黑名单里
+   * </pre>
+   * 结果 **248 条测试全绿** —— 用户输入就这么进了 logcat。
+   * 名字是不可靠的证据：改一次名、中转一次就没了。
+   *
+   * <p>新模型判断的是"敏感来源有没有流到日志出口"，因此下面三种形状**都必须被抓到**
+   * （每一条都有对应的变异验证，见 {@code MUTATION-RESULT.md}）：
+   * <ol>
+   *   <li>{@code question} 改名成 {@code e} 后直接进 Log</li>
+   *   <li>中间加一层 {@code String tmp = e;} 再进 Log</li>
+   *   <li>两层传播 {@code String a = input; String b = a;} 再进 Log</li>
+   * </ol>
+   *
+   * <p><b>能力边界（写在这里，不假装全覆盖）</b>：{@link LogTaint} 只做
+   * <b>方法内</b>分析 + 已登记返回值的跨方法传播。
+   * 没登记的方法返回值按"干净"处理，字段污点只做类名+字段名近似。
+   * 因此它<b>可能漏报</b>。它保证的是"看得见的路径上一定会报"。
+   */
+  @Test
+  public void 污点分析_敏感来源不得流入日志出口() throws Exception {
+    List<String> offenders = new ArrayList<>();
+    for (Path p : productionSources()) {
+      for (LogTaint.Finding f : LogTaint.scan(p)) {
+        offenders.add(f.toString());
+      }
+    }
+    assertTrue(
+        "以下位置存在「敏感来源 → 日志出口」的污点流（LogTaint 方法内污点分析）：\n"
+            + String.join("\n", offenders),
+        offenders.isEmpty());
+  }
+
+  // ================================================================
+  // 2.6 扫描器自证（CANARY）—— Phase 16 阶段 3，修「抽查 #10」
+  // ================================================================
+
+  /**
+   * ★ <b>Phase 16 阶段 3</b>：给扫描器装"自检"，让它不能悄悄失效。
+   *
+   * <p><b>问题（Phase 15 抽查 #10 实测）</b>：把 {@code 日志调用不得直接拼接用户内容变量()}
+   * 里那条检测规则的黑名单清空之后，**整套 248 条测试依然全绿**。
+   * 静态扫描类测试只能检测"生产代码里有没有某种形状"，
+   * 检测不了"扫描器自己还灵不灵" —— 于是它可以被无声地废掉。
+   *
+   * <p><b>解法</b>：内置一批<b>必须被正确判定</b>的样例
+   * （{@link LogTaint#selfCheckCases()}），每个样例都断言"该报 / 不该报"：
+   * <ul>
+   *   <li>{@code SAFE_*} 必须<b>不报</b> —— 防止有人把规则改得过度敏感、假阳性泛滥；</li>
+   *   <li>{@code LEAK_*} 必须<b>报</b> —— 防止规则被削弱；</li>
+   *   <li>{@code UNKNOWN_*} 用<b>随机变量名 + 多层中转</b>，必须<b>报</b>
+   *       —— 专门盯住 P1-1 那类绕过形状（改名 / 一层 / 两层 / 三层）。</li>
+   * </ul>
+   *
+   * <p>这样无论谁削弱了 {@code PARAM_SEEDS}、{@code SANITIZERS} 还是传播逻辑，
+   * 总有一个样例会红。
+   */
+  @Test
+  public void 扫描器自证_内置样例必须被正确判定() {
+    List<String> wrong = new ArrayList<>();
+    for (LogTaint.CanaryCase c : LogTaint.selfCheckCases()) {
+      List<LogTaint.Finding> found;
+      try {
+        found = LogTaint.scanText("AssistantPanel", c.source);
+      } catch (RuntimeException e) {
+        wrong.add(c.id + " 扫描时抛异常: " + e);
+        continue;
+      }
+      boolean did = !found.isEmpty();
+      if (c.mustFind && !did) {
+        wrong.add(c.id + " 应被判为泄露，但扫描器**没有报**（说明检测能力被削弱了）");
+      } else if (!c.mustFind && did) {
+        wrong.add(c.id + " 应判为安全，但扫描器**误报**了：" + found.get(0));
+      }
+    }
+    assertTrue(
+        "扫描器自证失败（这些样例是它的「健康证明」，任何一个不对都说明扫描器已不可信）：\n"
+            + String.join("\n", wrong),
+        wrong.isEmpty());
+  }
+
+  /** 自证样例本身必须覆盖两个方向，防止有人只留 SAFE 样例糊弄过去。 */
+  @Test
+  public void 扫描器自证_样例集必须同时含正向与负向() {
+    int safe = 0;
+    int leak = 0;
+    for (LogTaint.CanaryCase c : LogTaint.selfCheckCases()) {
+      if (c.mustFind) leak++;
+      else safe++;
+    }
+    assertTrue("至少要有 2 条『应判为安全』的样例（防假阳性方向）", safe >= 2);
+    assertTrue("至少要有 3 条『应判为泄露』的样例（防漏检方向）", leak >= 3);
+  }
+
+  // ================================================================
   // 3. 辅助
   // ================================================================
 

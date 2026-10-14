@@ -35,6 +35,19 @@ public class DshaNotificationListenerTest {
     f.set(null, data);
   }
 
+  /**
+   * 用反射设置"通知监听是否已连上"。
+   *
+   * <p>Phase 16：{@code modelSectionFor} 内部会读 {@code isConnected()}，
+   * 纯 JVM 下默认 false，会让所有期望"拿到通知段"的用例拿不到。
+   * 这里显式置 true —— 与 {@link #setCache} 同一套做法（测试替身，不改生产）。
+   */
+  private static void setConnected(boolean v) throws Exception {
+    Field f = DshaNotificationListener.class.getDeclaredField("connected");
+    f.setAccessible(true);
+    f.set(null, v);
+  }
+
   private static String call(String name, Class<?>[] sig, Object... args) throws Exception {
     Method m = DshaNotificationListener.class.getDeclaredMethod(name, sig);
     m.setAccessible(true);
@@ -48,15 +61,18 @@ public class DshaNotificationListenerTest {
   @Test
   public void digest_空缓存返回空串() throws Exception {
     setCache(null);
+    setConnected(true);
     assertEquals("缓存为 null 时应返回空串", "", call("digest", new Class<?>[] {int.class}, 3));
 
     setCache(Arrays.asList());
+    setConnected(true);
     assertEquals("缓存为空列表时应返回空串", "", call("digest", new Class<?>[] {int.class}, 3));
   }
 
   @Test
   public void digest_按want截断且不带引导语() throws Exception {
     setCache(Arrays.asList("第一条", "第二条", "第三条", "第四条"));
+    setConnected(true);
     String d = call("digest", new Class<?>[] {int.class}, 2);
     assertNotNull(d);
     assertTrue("应包含第 1 条", d.contains("第一条"));
@@ -68,6 +84,7 @@ public class DshaNotificationListenerTest {
   @Test
   public void digest_want小于1时按1处理() throws Exception {
     setCache(Arrays.asList("唯一一条"));
+    setConnected(true);
     String d = call("digest", new Class<?>[] {int.class}, 0);
     assertTrue("want=0 也应至少给出 1 条", d.contains("唯一一条"));
   }
@@ -75,6 +92,7 @@ public class DshaNotificationListenerTest {
   @Test
   public void digest_want超过总数时给全部() throws Exception {
     setCache(Arrays.asList("甲", "乙"));
+    setConnected(true);
     String d = call("digest", new Class<?>[] {int.class}, 99);
     assertTrue(d.contains("甲"));
     assertTrue(d.contains("乙"));
@@ -87,16 +105,19 @@ public class DshaNotificationListenerTest {
   @Test
   public void summarize_空缓存返回null() throws Exception {
     setCache(null);
+    setConnected(true);
     assertNull("无通知时应返回 null（调用方自己回『现在没通知』）",
         call("summarize", new Class<?>[] {int.class}, 3));
 
     setCache(Arrays.asList());
+    setConnected(true);
     assertNull("空列表同样返回 null", call("summarize", new Class<?>[] {int.class}, 3));
   }
 
   @Test
   public void summarize_应含总数与条数引导语() throws Exception {
     setCache(Arrays.asList("A", "B", "C", "D", "E"));
+    setConnected(true);
     String s = call("summarize", new Class<?>[] {int.class}, 3);
     assertNotNull(s);
     assertTrue("应说明总条数", s.contains("通知栏 5 条"));
@@ -107,6 +128,7 @@ public class DshaNotificationListenerTest {
   @Test
   public void summarize_未超want时不出现还有字样() throws Exception {
     setCache(Arrays.asList("A", "B"));
+    setConnected(true);
     String s = call("summarize", new Class<?>[] {int.class}, 5);
     assertTrue("应说明总条数", s.contains("通知栏 2 条"));
     assertFalse("不满一屏时不应说『还有 N 条没念』", s.contains("没念"));
@@ -119,6 +141,7 @@ public class DshaNotificationListenerTest {
     StringBuilder long_ = new StringBuilder();
     for (int i = 0; i < 100; i++) long_.append('长');
     setCache(Arrays.asList(long_.toString()));
+    setConnected(true);
     String s = call("summarize", new Class<?>[] {int.class}, 1);
     assertNotNull(s);
     // clip(46)：条目正文截到 46 字符。这里数一下正文里 '长' 字的个数，
@@ -134,6 +157,7 @@ public class DshaNotificationListenerTest {
   @Test
   public void summarize_want异常值不崩() throws Exception {
     setCache(Arrays.asList("A"));
+    setConnected(true);
     assertNotNull("want=0 不应崩", call("summarize", new Class<?>[] {int.class}, 0));
     assertNotNull("want 负数不应崩", call("summarize", new Class<?>[] {int.class}, -5));
     assertNotNull("want 极大不应崩", call("summarize", new Class<?>[] {int.class}, 99999));
@@ -180,6 +204,7 @@ public class DshaNotificationListenerTest {
     StringBuilder sb = new StringBuilder("验证码 ");
     for (int i = 0; i < 80; i++) sb.append((char) ('0' + i % 10));
     setCache(Arrays.asList(sb.toString()));
+    setConnected(true);
 
     String sum = call("summarize", new Class<?>[] {int.class}, 1);
     assertNotNull(sum);
@@ -215,7 +240,8 @@ public class DshaNotificationListenerTest {
   @Test
   public void D14_尾部标记不得经模型段落漏出() throws Exception {
     setCache(Arrays.asList(longNoticeWithTailMark()));
-    String section = DshaNotificationListener.modelSection(5);
+    setConnected(true);
+    String section = DshaNotificationListener.modelSectionFor(true, 5);
     assertFalse(
         "喂给模型的通知段落里不得出现通知尾部内容（说明没做最小化）",
         section.contains(MARK));
@@ -225,6 +251,7 @@ public class DshaNotificationListenerTest {
   @Test
   public void D14_念给用户与喂给模型必须用同一个最小化口径() throws Exception {
     setCache(Arrays.asList(longNoticeWithTailMark()));
+    setConnected(true);
 
     String sum = call("summarize", new Class<?>[] {int.class}, 1);
     String dig = call("digest", new Class<?>[] {int.class}, 1);
@@ -240,6 +267,7 @@ public class DshaNotificationListenerTest {
   @Test
   public void D14_单条输出长度不得超过上限() throws Exception {
     setCache(Arrays.asList(longNoticeWithTailMark(), "短一条"));
+    setConnected(true);
     String dig = call("digest", new Class<?>[] {int.class}, 5);
     for (String part : dig.split("\n· ")) {
       if (part.trim().isEmpty()) continue;
@@ -255,17 +283,20 @@ public class DshaNotificationListenerTest {
     // 假令牌（格式像、值是编的，不会被任何服务接受）
     String fake = "sk-FAKE000011112222333344445555";
     setCache(Arrays.asList("快递通知 取件码在 " + fake + " 后面那几位"));
-    String section = DshaNotificationListener.modelSection(5);
+    setConnected(true);
+    String section = DshaNotificationListener.modelSectionFor(true, 5);
     assertFalse("令牌形状串必须先过脱敏再进模型请求", section.contains(fake));
   }
 
   @Test
   public void D14_没通知时模型段落必须是空串() throws Exception {
     setCache(null);
+    setConnected(true);
     assertEquals("缓存为 null 时不应往提示词里塞任何东西",
-        "", DshaNotificationListener.modelSection(5));
+        "", DshaNotificationListener.modelSectionFor(true, 5));
     setCache(Arrays.asList());
-    assertEquals("空缓存同理", "", DshaNotificationListener.modelSection(5));
+    setConnected(true);
+    assertEquals("空缓存同理", "", DshaNotificationListener.modelSectionFor(true, 5));
   }
 
   @Test
@@ -274,7 +305,8 @@ public class DshaNotificationListenerTest {
     StringBuilder huge = new StringBuilder();
     for (int i = 0; i < 5000; i++) huge.append('X');
     setCache(Arrays.asList(null, "", "   ", huge.toString(), null));
-    String section = DshaNotificationListener.modelSection(5);
+    setConnected(true);
+    String section = DshaNotificationListener.modelSectionFor(true, 5);
     assertNotNull("不应抛异常", section);
     assertFalse("超长条目不得原样进提示词", section.contains(huge.toString()));
     assertTrue("输出本身也要有界（5000 字的条目不该带出几千字）", section.length() < 500);
@@ -313,16 +345,86 @@ public class DshaNotificationListenerTest {
    * <b>NOT TESTED</b>，不冒充 PASS。这条静态断言 + 上面 {@code modelSection} 的
    * 行为测试，是目前能拿到的最强证据。
    */
+  /**
+   * ★ <b>Phase 16 P1-2 重写</b>：门控从"查字面量"升级为
+   * <b>真值表行为测试 + 唯一入口规则</b>。
+   *
+   * <p><b>为什么重写</b>：这条断言原来判的是
+   * {@code src.contains("if (mentionsNotify(question) && DshaNotificationListener.isConnected())")}。
+   * Phase 15 独立审查实测了两个方向都失效：
+   * <ul>
+   *   <li><b>拦不住该拦的</b>：保留原门控块、在旁边<b>再加一处不带门控的
+   *       {@code modelSection(5)}</b> → 248 条测试<b>全绿</b>；</li>
+   *   <li><b>误伤不该拦的</b>：把门控条件抽成私有方法（行为完全不变）→ <b>假阳性失败</b>。</li>
+   * </ul>
+   * 字面量不是控制流，它既证明不了"每个调用点都被门控"，也不该管"代码长什么样"。
+   *
+   * <p><b>新的三层防护</b>：
+   * <ol>
+   *   <li>{@link #P16_通知段门控_真值表} —— 门控判定本身是纯函数，直接断言真值表（行为级）；</li>
+   *   <li>本条 —— <b>唯一入口</b>：生产里不允许出现旧的无门控 {@code modelSection(}，
+   *       且 {@code modelSectionFor(} 只能有<b>一处</b>调用点；</li>
+   *   <li>{@link #P16_通知段门控_allow为假时必须返回空串} —— 端到端：allow=false 时
+   *       拿不到任何通知正文（即使缓存里有）。</li>
+   * </ol>
+   */
   @Test
-  public void D14_模型段落的调用点必须被门控包住() throws Exception {
-    String src = readMainSource("AssistantPanel.java");
-    assertTrue("提示词里必须存在 modelSection 调用", src.contains("DshaNotificationListener.modelSection("));
+  public void P16_通知段必须只有唯一一个带门控的入口() throws Exception {
+    String panel = readMainSource("AssistantPanel.java");
+    // ① 旧的无门控入口必须不存在（这是 P1-2 那个绕过形状的入口）
+    assertFalse(
+        "不得再出现无门控的 modelSection( 调用（唯一入口是 modelSectionFor）",
+        panel.contains("DshaNotificationListener.modelSection("));
+    // ② 新入口必须存在，且只出现一次
+    int n = countOccurrences(panel, "modelSectionFor(");
+    assertEquals(
+        "modelSectionFor( 在生产里必须**恰好一处**调用点（多了就可能是旁路），实际 " + n,
+        1, n);
+    // ③ 那一处的第一个实参必须来自门控判定，不能是硬编码 true
     assertTrue(
-        "modelSection 必须挂在 mentionsNotify(question) 与 isConnected() 的双重条件内",
-        src.contains("if (mentionsNotify(question) && DshaNotificationListener.isConnected())"));
+        "modelSectionFor 的第一个实参必须是 mentionsNotify(question) 的结果，不得硬编码",
+        panel.contains("modelSectionFor(mentionsNotify(question)"));
+    // ④ 仍然禁止绕开最小化口径的 digest 直调
     assertFalse(
         "不得出现不被门控的 digest 直调（绕开最小化口径的旧写法）",
-        src.contains("DshaNotificationListener.digest("));
+        panel.contains("DshaNotificationListener.digest("));
+  }
+
+  /** 门控判定是纯函数 —— 直接断言真值表（这是原来缺的那层行为测试）。 */
+  @Test
+  public void P16_通知段门控_真值表() {
+    assertFalse("没问通知 → 不带", DshaNotificationListener.allowNotificationSection(false, true));
+    assertFalse("监听没连上 → 不带", DshaNotificationListener.allowNotificationSection(true, false));
+    assertFalse("两个都不满足 → 不带", DshaNotificationListener.allowNotificationSection(false, false));
+    assertTrue("都满足 → 带", DshaNotificationListener.allowNotificationSection(true, true));
+  }
+
+  /**
+   * 端到端：门控为假时，即使缓存里塞满了通知正文，也<b>一个字都拿不到</b>。
+   *
+   * <p>这条是 P1-2 最直接的证据 —— 它证明"绕过门控"这条路的尽头是空的。
+   */
+  @Test
+  public void P16_通知段门控_allow为假时必须返回空串() throws Exception {
+    setCache(Arrays.asList("张三：你的验证码是 123456", "李四：今晚几点"));
+    setConnected(true); // 即使服务是连上的
+    assertEquals(
+        "allow=false 时必须返回空串（缓存里有内容也不行）",
+        "", DshaNotificationListener.modelSectionFor(false, 5));
+    // 对照：allow=true 时应该拿得到（证明上面的空串不是因为别的原因）
+    String got = DshaNotificationListener.modelSectionFor(true, 5);
+    assertTrue("allow=true 时应拿到通知段（对照组）", got.contains("【最近的通知"));
+  }
+
+  /** 统计子串出现次数。 */
+  private static int countOccurrences(String haystack, String needle) {
+    int n = 0;
+    int at = 0;
+    while ((at = haystack.indexOf(needle, at)) >= 0) {
+      n++;
+      at += needle.length();
+    }
+    return n;
   }
 
   /**

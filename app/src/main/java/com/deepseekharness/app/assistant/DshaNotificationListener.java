@@ -112,14 +112,46 @@ public final class DshaNotificationListener extends NotificationListenerService 
   }
 
   /**
-   * 喂给模型那一整段（含小标题；没有通知就返回空串，调用方直接 append 即可）。
+   * ★ <b>本次提问该不该带通知段</b>（Phase 16 修复 P1-2 的核心）。
+   *
+   * <p><b>为什么要有这个纯函数</b>：Phase 15 独立审查 P1-2 实测——
+   * 门控原本写在 {@code AssistantPanel.askModel} 里
+   * （{@code if (mentionsNotify(question) && isConnected())}），
+   * 而"门控是否正确"只能靠一条 {@code src.contains(...)} 字面量断言守护。
+   * 于是<b>保留原门控块、在旁边再加一处不带门控的 {@code modelSection(5)} 调用</b>，
+   * 全套 248 条测试<b>依然全绿</b> —— 通知正文就这么无声地喂给了模型。
+   *
+   * <p>现在把"该不该带"做成<b>纯函数</b>：
+   * <ul>
+   *   <li>它是 {@code boolean} 上的纯判定，可以在 JVM 单测里直接断言真值表；</li>
+   *   <li>调用方只能传 {@code mentionsNotify(question)} 的结果进来，
+   *       没法"再加一处不带门控的调用"—— {@link #modelSectionFor} 是唯一入口。</li>
+   * </ul>
+   *
+   * @param userAskedAboutNotifications 用户这次问的是不是通知相关
+   *                                    （由 {@code AssistantPanel.mentionsNotify(question)} 给出）
+   * @param listenerConnected           通知监听服务是否已连上
+   */
+  static boolean allowNotificationSection(
+      boolean userAskedAboutNotifications, boolean listenerConnected) {
+    return userAskedAboutNotifications && listenerConnected;
+  }
+
+  /**
+   * 喂给模型那一整段（含小标题）的<b>唯一入口</b>。
+   *
+   * <p><b>Phase 16 变更</b>：原来的 {@code modelSection(int)} 不带门控，
+   * 谁都能调。现在改成 {@code modelSectionFor(allow, want)} ——
+   * {@code allow} 为假（或监听未连上）时<b>一律返回空串</b>，
+   * 于是"绕过门控直接拿通知正文"这条路在结构上被堵住了。
    *
    * <p><b>为什么把拼装挪到本类</b>（D-14 修复，Phase 13）：通知正文的最小化口径
    * 应该归"持有通知的类"管，面板那边只决定"这次问话要不要带通知"。
    * 拆开之后这段也能在 JVM 单测里被直接断言 —— 拼模型提示词的那条路
    * 依赖 Activity / Config，在纯 JUnit 下测不了，而这条路能测。
    */
-  static String modelSection(int want) {
+  static String modelSectionFor(boolean allow, int want) {
+    if (!allowNotificationSection(allow, isConnected())) return "";
     String d = digest(want);
     if (d.isEmpty()) return "";
     return "\n【最近的通知（应用 标题：正文）】" + d + '\n';
