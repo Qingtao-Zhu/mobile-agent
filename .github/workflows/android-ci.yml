@@ -33,14 +33,21 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: 准备 Android SDK
-        uses: android-actions/setup-android@v3
-
+      # 说明：ubuntu-24.04 runner 已预装 Android 命令行工具与 SDK，ANDROID_SDK_ROOT 已设好。
+      # 不使用 android-actions/setup-android —— 它内部会执行 `sdkmanager tools`，
+      # 而旧的 "tools" 包已从 SDK 源中移除，会让该动作直接失败（实测 exit 1）。
       - name: 安装编译所需的 SDK 组件
         run: |
-          yes | sdkmanager --licenses > /dev/null 2>&1 || true
-          sdkmanager "platforms;android-37.0" "build-tools;36.0.0" \
-            || echo "::warning::SDK 组件预安装失败，交由 Gradle 自动下载"
+          set -e
+          SDKMANAGER="$(command -v sdkmanager || true)"
+          if [ -z "$SDKMANAGER" ]; then
+            SDKMANAGER="$(ls -d "$ANDROID_SDK_ROOT"/cmdline-tools/*/bin/sdkmanager 2>/dev/null | head -1)"
+          fi
+          echo "使用 sdkmanager: $SDKMANAGER"
+          yes | "$SDKMANAGER" --licenses > /dev/null 2>&1 || true
+          "$SDKMANAGER" "platforms;android-37.0" "build-tools;36.0.0" \
+            || echo "::warning::SDK 组件预安装未成功，交由 Gradle 自动下载"
+          ls "$ANDROID_SDK_ROOT/platforms" || true
 
       - name: Gradle 编译
         run: ./gradlew :app:compileDebugJavaWithJavac --no-daemon --stacktrace
